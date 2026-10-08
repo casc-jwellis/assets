@@ -296,7 +296,7 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
 .field { margin-bottom: 16px; }
 .field label { display: block; margin-bottom: 6px; font-weight: 550; font-size: .9rem; }
 .field small { display: block; margin-top: 4px; }
-input[type="text"], input[type="password"], input[type="search"], input[type="email"], input[type="number"] {
+input[type="text"], input[type="password"], input[type="search"], input[type="email"], input[type="number"], select {
     width: 100%;
     padding: 9px 12px;
     border: 1px solid var(--border);
@@ -309,6 +309,19 @@ input::placeholder { color: var(--muted); opacity: .8; }
 input:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
 
 .form-card { padding: 20px; max-width: 460px; }
+.form-card.wide { max-width: 760px; }
+.form-card h2 { margin-bottom: 14px; }
+.form-card > p { margin-bottom: 14px; }
+.form-card .card-head { margin: -20px -20px 14px; }
+.form-card .card-head h2 { margin: 0; }
+.form-actions { display: flex; gap: 10px; margin-top: 20px; }
+.center { text-align: center !important; }
+.perm-note { margin-bottom: 8px; }
+.perm-table td, .perm-table th { padding: 8px 14px; }
+.perm-table input[type="radio"] { accent-color: var(--accent); width: 16px; height: 16px; }
+input:disabled { opacity: .6; cursor: not-allowed; }
+.badge-accent { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.badge-danger { background: var(--danger-bg); color: var(--danger); border-color: transparent; }
 
 .search { position: relative; width: min(100%, 320px); }
 .search .icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }

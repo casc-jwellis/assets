@@ -43,6 +43,13 @@ final class Request
         return is_string($v) ? $v : $default;
     }
 
+    /** @return array<string,string> an array-valued POST field such as perm[12]=rw (non-string entries dropped) */
+    public function postArray(string $key): array
+    {
+        $v = $_POST[$key] ?? null;
+        return is_array($v) ? array_filter($v, 'is_string') : [];
+    }
+
     public function isSecure(): bool
     {
         return !empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off';

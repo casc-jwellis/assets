@@ -9,10 +9,9 @@ final class Auth
     /** Verified against when the username is unknown, so response time doesn't reveal valid usernames. */
     private const DUMMY_HASH = '$2y$10$Vrjs0nLJzb4XKGGCGfXemeF0rtT4UsHSLdACslO/ErltPwcyVojUW';
 
-    private const USER_COLUMNS = 'user_id, username, firstname, lastname, email, department_id, admin';
-
     private ?array $user = null;
     private bool $loaded = false;
+    private ?bool $canDisable = null;
 
     public function __construct(
         private Database $db,
@@ -44,16 +43,37 @@ final class Auth
             return null;
         }
 
-        // Reloaded each request so deleted/changed accounts take effect immediately.
-        $row = $this->db->one('SELECT ' . self::USER_COLUMNS . ' FROM users WHERE user_id = ?', [$uid]);
-        if ($row === null) {
+        // Reloaded each request so deleted/changed/disabled accounts take effect immediately.
+        // SELECT * (not a column list) so this keeps working before migration 004 adds `disabled`.
+        $row = $this->db->one('SELECT * FROM users WHERE user_id = ?', [$uid]);
+        if ($row === null || !empty($row['disabled'])) {
+            $disabled = $row !== null;
             $this->logout();
             $this->session->start();
+            if ($disabled) {
+                $this->session->flash('danger', 'Your account has been disabled.');
+            }
             return null;
         }
+        unset($row['password']); // never keep the hash around
         $row['admin'] = (bool) $row['admin'];
+        $row['disabled'] = false;
         $this->session->set('auth.seen', time());
         return $this->user = $row;
+    }
+
+    /** Whether migration 004 (users.disabled) has been applied. */
+    public function supportsDisabling(): bool
+    {
+        if ($this->canDisable === null) {
+            try {
+                $this->db->all('SELECT disabled FROM users LIMIT 1');
+                $this->canDisable = true;
+            } catch (\PDOException) {
+                $this->canDisable = false;
+            }
+        }
+        return $this->canDisable;
     }
 
     public function check(): bool
@@ -68,13 +88,11 @@ final class Auth
 
     public function attempt(string $username, string $password): bool
     {
-        $row = $username === '' ? null : $this->db->one(
-            'SELECT ' . self::USER_COLUMNS . ', password FROM users WHERE username = ?',
-            [$username]
-        );
+        $row = $username === '' ? null : $this->db->one('SELECT * FROM users WHERE username = ?', [$username]);
 
         $stored = (string) ($row['password'] ?? self::DUMMY_HASH);
-        $ok = $this->checkHash($stored, $password) && $row !== null;
+        // Disabled accounts fail exactly like a wrong password (no hint to someone guessing).
+        $ok = $this->checkHash($stored, $password) && $row !== null && empty($row['disabled']);
 
         if (!$ok) {
             usleep(random_int(200_000, 400_000)); // slow down online guessing
