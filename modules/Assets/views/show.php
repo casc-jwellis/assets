@@ -1,5 +1,5 @@
 <?php
-/** Expects $a (asset row with joined names), $transfers (list), $depreciation (array|null). */
+/** Expects $a (asset row with joined names), $transfers (list), $depreciation (array|null), $updatedBy (string), $canEdit (bool). */
 $creator = trim(($a['creator_first'] ?? '') . ' ' . ($a['creator_last'] ?? ''));
 $location = trim(($a['building_name'] ?? '') . ($a['room'] !== '' ? ', room ' . $a['room'] : ''), ', ');
 ?>
@@ -15,6 +15,13 @@ $location = trim(($a['building_name'] ?? '') . ($a['room'] !== '' ? ', room ' . 
             <span class="badge badge-warn">Never verified</span>
         <?php else: ?>
             <span class="badge badge-ok">Verified <?= e(fmt_date($a['verified_date'])) ?></span>
+        <?php endif; ?>
+        <?php if ($canEdit): ?>
+            <form method="post" action="<?= e(url('/assets/' . (int) $a['asset_id'] . '/verify')) ?>" class="inline-form">
+                <?= csrf_field() ?>
+                <button type="submit" class="btn" title="Record that this asset was physically checked today">Mark verified</button>
+            </form>
+            <a class="btn btn-primary" href="<?= e(url('/assets/' . (int) $a['asset_id'] . '/edit')) ?>">Edit</a>
         <?php endif; ?>
     </div>
 </div>
@@ -47,6 +54,9 @@ $location = trim(($a['building_name'] ?? '') . ($a['room'] !== '' ? ', room ' . 
         <div><dt>Last verified</dt><dd><?= e(fmt_date($a['verified_date'])) ?></dd></div>
         <div><dt>Added by</dt><dd><?= e($creator !== '' ? $creator : $a['user_id']) ?></dd></div>
         <div><dt>Added on</dt><dd><?= e(fmt_date($a['created_date'])) ?></dd></div>
+        <?php if (!empty($a['updated_date'])): ?>
+            <div><dt>Last changed</dt><dd><?= e(fmt_date($a['updated_date'])) ?> <span class="muted">by <?= e($updatedBy) ?></span></dd></div>
+        <?php endif; ?>
     </dl>
 </div>
 

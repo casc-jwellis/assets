@@ -319,6 +319,19 @@ input:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color:
 .perm-note { margin-bottom: 8px; }
 .perm-table td, .perm-table th { padding: 8px 14px; }
 .perm-table input[type="radio"] { accent-color: var(--accent); width: 16px; height: 16px; }
+textarea {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    resize: vertical;
+}
+textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+input[type="date"] { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; }
 input:disabled { opacity: .6; cursor: not-allowed; }
 .badge-accent { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
 .badge-danger { background: var(--danger-bg); color: var(--danger); border-color: transparent; }

@@ -29,6 +29,11 @@ final class Migrator
         return $out;
     }
 
+    public function isApplied(string $name): bool
+    {
+        return isset($this->applied()[$name]);
+    }
+
     /** @return list<string> names of migrations not yet applied */
     public function pending(): array
     {

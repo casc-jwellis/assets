@@ -184,6 +184,45 @@ final class Auth
         return [$column . ' IN (' . implode(',', array_fill(0, count($ids), '?')) . ')', $ids];
     }
 
+    /** @var list<int>|null|false false = not loaded yet */
+    private array|null|false $writable = false;
+
+    /**
+     * Departments the user may change assets in ('rw' permission).
+     * Returns null for administrators, meaning every department.
+     *
+     * @return list<int>|null
+     */
+    public function writableDepartmentIds(): ?array
+    {
+        if ($this->writable === false) {
+            $user = $this->user();
+            if ($user === null) {
+                $this->writable = [];
+            } elseif ($user['admin']) {
+                $this->writable = null;
+            } else {
+                $this->writable = array_map('intval', array_column($this->db->all(
+                    "SELECT department_id FROM permissions WHERE user_id = ? AND permission = 'rw'",
+                    [$user['user_id']]
+                ), 'department_id'));
+            }
+        }
+        return $this->writable;
+    }
+
+    public function canWrite(int $departmentId): bool
+    {
+        $ids = $this->writableDepartmentIds();
+        return $ids === null || in_array($departmentId, $ids, true);
+    }
+
+    public function canWriteAny(): bool
+    {
+        $ids = $this->writableDepartmentIds();
+        return $ids === null || $ids !== [];
+    }
+
     private function isLegacyHash(string $hash): bool
     {
         return (bool) preg_match('/^(?:[0-9a-f]{32}|[0-9a-f]{40})$/i', $hash);

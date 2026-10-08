@@ -1,5 +1,5 @@
 <?php
-/** Expects $rows, $search, $page, $pages, $total. */
+/** Expects $rows, $search, $page, $pages, $total, $canAdd. */
 $pageUrl = static fn(int $p): string => url('/assets') . '?' . http_build_query(array_filter(['q' => $search, 'page' => $p > 1 ? $p : null]));
 ?>
 <div class="page-head">
@@ -7,10 +7,15 @@ $pageUrl = static fn(int $p): string => url('/assets') . '?' . http_build_query(
         <h1>Assets</h1>
         <p class="muted"><?= e(number_format($total)) ?> <?= $total === 1 ? 'asset' : 'assets' ?><?= $search !== '' ? ' matching your search' : '' ?></p>
     </div>
-    <form method="get" action="<?= e(url('/assets')) ?>" class="search" role="search">
-        <?= icon('search', 16) ?>
-        <input type="search" name="q" value="<?= e($search) ?>" placeholder="Asset #, serial or description" aria-label="Search assets" maxlength="64" data-submit-on-clear>
-    </form>
+    <div class="page-actions">
+        <form method="get" action="<?= e(url('/assets')) ?>" class="search" role="search">
+            <?= icon('search', 16) ?>
+            <input type="search" name="q" value="<?= e($search) ?>" placeholder="Asset #, serial or description" aria-label="Search assets" maxlength="64" data-submit-on-clear>
+        </form>
+        <?php if ($canAdd): ?>
+            <a class="btn btn-primary" href="<?= e(url('/assets/new')) ?>">Add asset</a>
+        <?php endif; ?>
+    </div>
 </div>
 
 <div class="card">
