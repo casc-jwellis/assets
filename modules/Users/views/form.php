@@ -15,7 +15,31 @@ $never = $user === null || $user['lastlogin'] === null || str_starts_with((strin
             <p class="muted">User ID <?= e($f['user_id']) ?> · Last sign-in <?= $never ? 'never' : e(fmt_date($user['lastlogin'])) ?></p>
         <?php endif; ?>
     </div>
+    <?php if (!$isNew && $canDisable): ?>
+        <?php /* Separate forms (they cannot nest inside the edit form below). Both are reversible, so no confirmation page. */ ?>
+        <div class="page-actions">
+            <?php if ($f['disabled']): ?>
+                <form method="post" action="<?= e(url('/users/' . rawurlencode((string) $f['user_id']) . '/enable') . $listQs) ?>" class="inline-form">
+                    <?= csrf_field() ?>
+                    <button type="submit" class="btn btn-primary">Re-enable user</button>
+                </form>
+            <?php elseif ($isSelf): ?>
+                <span class="muted small">You cannot disable your own account.</span>
+            <?php else: ?>
+                <form method="post" action="<?= e(url('/users/' . rawurlencode((string) $f['user_id']) . '/disable') . $listQs) ?>" class="inline-form">
+                    <?= csrf_field() ?>
+                    <button type="submit" class="btn" title="Stop this person signing in. Their account, permissions and history are kept.">Disable user</button>
+                </form>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?>
 </div>
+
+<?php if (!$isNew && $f['disabled']): ?>
+    <div class="alert alert-warning" role="status">
+        <strong>This user is disabled</strong> and cannot sign in. Their account, department access and history are kept; re-enable them to restore access.
+    </div>
+<?php endif; ?>
 
 <?php foreach ($errors as $err): ?>
     <div class="alert alert-danger" role="alert"><?= e($err) ?></div>
@@ -81,12 +105,6 @@ $never = $user === null || $user['lastlogin'] === null || str_starts_with((strin
             <input type="checkbox" name="admin" value="1"<?= $f['admin'] ? ' checked' : '' ?><?= $isSelf ? ' disabled' : '' ?>>
             <span><strong>Administrator</strong>: full access to every department, users and migrations<?= $isSelf ? ' (you cannot change your own)' : '' ?></span>
         </label>
-        <?php if ($canDisable): ?>
-            <label class="check">
-                <input type="checkbox" name="disabled" value="1"<?= $f['disabled'] ? ' checked' : '' ?><?= $isSelf ? ' disabled' : '' ?>>
-                <span><strong>Disabled</strong>: cannot sign in<?= $isSelf ? ' (you cannot disable yourself)' : '' ?></span>
-            </label>
-        <?php endif; ?>
     </div>
 
     <div class="card form-card wide section">

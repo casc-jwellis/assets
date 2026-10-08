@@ -27,6 +27,8 @@ final class UsersModule extends Module
         $router->post('/users/new', [$this, 'create'], $admin);
         $router->get('/users/{uid:' . self::ID . '}', [$this, 'showEdit'], $admin);
         $router->post('/users/{uid:' . self::ID . '}', [$this, 'update'], $admin);
+        $router->post('/users/{uid:' . self::ID . '}/disable', [$this, 'disable'], $admin);
+        $router->post('/users/{uid:' . self::ID . '}/enable', [$this, 'enable'], $admin);
     }
 
     public function nav(): array
@@ -36,14 +38,42 @@ final class UsersModule extends Module
 
     // ---- list ----
 
+    /** Keep the status filter (as well as search and page) when moving between the list and a user. */
+    protected function rememberList(Request $req): void
+    {
+        $this->listQs = $this->listState(
+            mb_substr(trim((string) $req->query('q')), 0, 64),
+            max(1, (int) $req->query('page', '1')),
+            ['status' => $this->statusParam($this->statusFilter($req))]
+        );
+    }
+
+    /** The ?status= value to put in links: nothing for the default, and nothing at all before migration 004. */
+    private function statusParam(string $status): ?string
+    {
+        return $status === 'active' || !$this->app->auth->supportsDisabling() ? null : $status;
+    }
+
+    /** 'active' (default), 'disabled' or 'all'. Always 'all' until migration 004 exists. */
+    private function statusFilter(Request $req): string
+    {
+        if (!$this->app->auth->supportsDisabling()) {
+            return 'all';
+        }
+        $s = (string) $req->query('status');
+        return in_array($s, ['disabled', 'all'], true) ? $s : 'active';
+    }
+
     public function index(Request $req): string
     {
         $db = $this->app->db;
         $search = trim((string) $req->query('q'));
         $page = max(1, (int) $req->query('page', '1'));
+        $status = $this->statusFilter($req);
+        $statusParam = $this->statusParam($status);
 
         if ($req->query('q') !== null && $search === '') {
-            $this->redirect('/users' . ($page > 1 ? '?page=' . $page : ''));
+            $this->redirect('/users' . $this->listState('', $page, ['status' => $statusParam]));
         }
 
         $where = '1 = 1';
@@ -54,12 +84,17 @@ final class UsersModule extends Module
                        OR u.lastname LIKE ? ESCAPE '!' OR u.email LIKE ? ESCAPE '!')";
             $params = array_fill(0, 5, $like);
         }
+        if ($status === 'active') {
+            $where .= ' AND u.disabled = 0';
+        } elseif ($status === 'disabled') {
+            $where .= ' AND u.disabled = 1';
+        }
 
         $total = (int) $db->value("SELECT COUNT(*) FROM users u WHERE {$where}", $params);
         $pages = max(1, (int) ceil($total / self::PER_PAGE));
         $page = min($page, $pages);
         $offset = ($page - 1) * self::PER_PAGE;
-        $this->listQs = $this->listState($search, $page);
+        $this->listQs = $this->listState($search, $page, ['status' => $statusParam]);
 
         $cols = 'u.user_id, u.username, u.firstname, u.lastname, u.email, u.admin, u.lastlogin, d.abbr AS dept'
             . ($this->app->auth->supportsDisabling() ? ', u.disabled' : '');
@@ -81,8 +116,56 @@ final class UsersModule extends Module
             'page'   => $page,
             'pages'  => $pages,
             'total'  => $total,
+            'status' => $status,
             'canDisable' => $this->app->auth->supportsDisabling(),
         ]);
+    }
+
+    // ---- disable / re-enable ----
+
+    public function disable(Request $req, array $params): never
+    {
+        $this->setDisabled($req, $params['uid'], true);
+    }
+
+    public function enable(Request $req, array $params): never
+    {
+        $this->setDisabled($req, $params['uid'], false);
+    }
+
+    /** Revoke or restore a person's ability to sign in. Reversible, so no confirmation page. */
+    private function setDisabled(Request $req, string $userId, bool $disable): never
+    {
+        $this->rememberList($req);
+        $db = $this->app->db;
+        $auth = $this->app->auth;
+        $back = '/users/' . rawurlencode($userId) . $this->listQs;
+
+        if (!$auth->supportsDisabling()) {
+            $this->app->session->flash('danger', 'Disabling users needs a database update. Apply the pending migrations first.');
+            $this->redirect($back);
+        }
+        $user = $this->find($userId);
+
+        if ($disable) {
+            if ($user['user_id'] === $auth->user()['user_id']) {
+                $this->app->session->flash('danger', 'You cannot disable your own account.');
+                $this->redirect($back);
+            }
+            // Never leave the system without an active administrator.
+            if ($user['admin'] && empty($user['disabled'])
+                && (int) $db->value('SELECT COUNT(*) FROM users WHERE admin = 1 AND disabled = 0 AND user_id <> ?', [$user['user_id']]) === 0) {
+                $this->app->session->flash('danger', 'This is the last active administrator and cannot be disabled.');
+                $this->redirect($back);
+            }
+        }
+
+        $db->execute('UPDATE users SET disabled = ? WHERE user_id = ?', [(int) $disable, $user['user_id']]);
+        $name = trim($user['firstname'] . ' ' . $user['lastname']) ?: $user['username'];
+        $this->app->session->flash('success', $disable
+            ? $name . ' is disabled and can no longer sign in. Their account, permissions and history are unchanged.'
+            : $name . ' is enabled and can sign in again.');
+        $this->redirect($back);
     }
 
     // ---- create / edit forms ----
@@ -148,11 +231,11 @@ final class UsersModule extends Module
             'department_id' => (int) $req->post('department_id'),
             'timezone'      => (string) $req->post('timezone'),
             'admin'         => $req->post('admin') === '1',
-            'disabled'      => $canDisable && $req->post('disabled') === '1',
+            // Disabling and re-enabling have their own buttons; saving the form never changes it.
+            'disabled'      => !$isNew && !empty($existing['disabled']),
         ];
-        if ($isSelf) { // you can't lock yourself out; the form doesn't offer these for your own account
+        if ($isSelf) { // you can't remove your own admin access; the form doesn't offer it for your own account
             $f['admin'] = true;
-            $f['disabled'] = false;
         }
         $password = (string) $req->post('password');
         $confirm = (string) $req->post('password2');
@@ -201,19 +284,19 @@ final class UsersModule extends Module
             }
         }
         // Never leave the system without an active administrator.
-        if (!$isNew && $existing['admin'] && empty($existing['disabled']) && (!$f['admin'] || $f['disabled'])) {
+        if (!$isNew && $existing['admin'] && empty($existing['disabled']) && !$f['admin']) {
             $others = (int) $db->value(
                 'SELECT COUNT(*) FROM users WHERE admin = 1 AND user_id <> ?' . ($canDisable ? ' AND disabled = 0' : ''),
                 [$existing['user_id']]
             );
             if ($others === 0) {
-                $errors[] = 'This is the last active administrator; it cannot be demoted or disabled.';
+                $errors[] = 'This is the last active administrator; it cannot be demoted.';
             }
         }
 
         if ($errors === []) {
             try {
-                $this->persist($isNew, $f, $password, $perms, $canDisable);
+                $this->persist($isNew, $f, $password, $perms);
                 $this->app->session->flash('success', 'User "' . $f['username'] . '" ' . ($isNew ? 'created.' : 'saved.'));
                 $this->redirect('/users' . $this->listQs);
             } catch (\RuntimeException $e) {
@@ -233,7 +316,7 @@ final class UsersModule extends Module
      *
      * @throws \RuntimeException if the password hash could not be stored intact
      */
-    private function persist(bool $isNew, array $f, string $password, array $perms, bool $canDisable): void
+    private function persist(bool $isNew, array $f, string $password, array $perms): void
     {
         $db = $this->app->db;
         $pdo = $db->pdo();
@@ -259,9 +342,6 @@ final class UsersModule extends Module
                 if ($hash !== null) {
                     $db->execute('UPDATE users SET password = ? WHERE user_id = ?', [$hash, $f['user_id']]);
                 }
-            }
-            if ($canDisable) {
-                $db->execute('UPDATE users SET disabled = ? WHERE user_id = ?', [(int) $f['disabled'], $f['user_id']]);
             }
             if ($hash !== null && $db->value('SELECT password FROM users WHERE user_id = ?', [$f['user_id']]) !== $hash) {
                 throw new \RuntimeException('The users.password column is too narrow for secure password hashes. Apply migration 001 on the Migrations page first.');

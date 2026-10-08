@@ -1,17 +1,32 @@
 <?php
-/** Expects $rows, $search, $page, $pages, $total, $canDisable. */
-$pageUrl = static fn(int $p): string => url('/users') . '?' . http_build_query(array_filter(['q' => $search, 'page' => $p > 1 ? $p : null]));
+/** Expects $rows, $search, $page, $pages, $total, $status ('active'|'disabled'|'all'), $canDisable, $listQs. */
+$pageUrl = static fn(int $p): string => url('/users') . '?' . http_build_query(array_filter([
+    'q' => $search,
+    'status' => $status === 'active' ? null : $status,
+    'page' => $p > 1 ? $p : null,
+]));
+$allUrl = url('/users') . '?' . http_build_query(array_filter(['q' => $search, 'status' => 'all']));
+$statusLabels = ['active' => 'Active', 'disabled' => 'Disabled', 'all' => 'All'];
 $never = static fn($v): bool => $v === null || $v === '' || str_starts_with((string) $v, '0000') || str_starts_with((string) $v, '1970-01-01');
 ?>
 <div class="page-head">
     <div>
         <h1>Users</h1>
-        <p class="muted"><?= e(number_format($total)) ?> <?= $total === 1 ? 'user' : 'users' ?><?= $search !== '' ? ' matching your search' : '' ?></p>
+        <p class="muted"><?= e(number_format($total)) ?> <?= $status === 'active' && $canDisable ? 'active ' : ($status === 'disabled' ? 'disabled ' : '') ?><?= $total === 1 ? 'user' : 'users' ?><?= $search !== '' ? ' matching your search' : '' ?></p>
     </div>
     <div class="page-actions">
-        <form method="get" action="<?= e(url('/users')) ?>" class="search" role="search">
-            <?= icon('search', 16) ?>
-            <input type="search" name="q" value="<?= e($search) ?>" placeholder="Name, username, ID or email" aria-label="Search users" maxlength="64" data-submit-on-clear>
+        <form method="get" action="<?= e(url('/users')) ?>" class="search-form" role="search">
+            <div class="search">
+                <?= icon('search', 16) ?>
+                <input type="search" name="q" value="<?= e($search) ?>" placeholder="Name, username, ID or email" aria-label="Search users" maxlength="64" data-submit-on-clear>
+            </div>
+            <?php if ($canDisable): ?>
+                <select name="status" aria-label="Show" data-autosubmit>
+                    <?php foreach ($statusLabels as $value => $label): ?>
+                        <option value="<?= e($value) ?>"<?= $status === $value ? ' selected' : '' ?>><?= e($label) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            <?php endif; ?>
         </form>
         <a class="btn btn-primary" href="<?= e(url('/users/new') . $listQs) ?>">Add user</a>
     </div>
@@ -26,7 +41,16 @@ $never = static fn($v): bool => $v === null || $v === '' || str_starts_with((str
 
 <div class="card">
     <?php if ($rows === []): ?>
-        <p class="empty"><?= $search !== '' ? 'No users match your search.' : 'No users yet.' ?></p>
+        <p class="empty">
+            <?php if ($status === 'active' && $canDisable): ?>
+                No active users<?= $search !== '' ? ' match your search' : '' ?>.
+                <a href="<?= e($allUrl) ?>">Include disabled users</a>
+            <?php elseif ($status === 'disabled'): ?>
+                No disabled users<?= $search !== '' ? ' match your search' : '' ?>.
+            <?php else: ?>
+                <?= $search !== '' ? 'No users match your search.' : 'No users yet.' ?>
+            <?php endif; ?>
+        </p>
     <?php else: ?>
         <div class="table-wrap">
             <table class="table">
