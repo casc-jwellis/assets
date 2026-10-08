@@ -28,7 +28,7 @@ $pageUrl = static fn(int $p): string => url('/assets') . '?' . http_build_query(
                 <tbody>
                 <?php foreach ($rows as $r): ?>
                     <tr>
-                        <td class="nowrap"><?= e($r['asset_number']) ?></td>
+                        <td class="nowrap"><a href="<?= e(url('/assets/' . (int) $r['asset_id'])) ?>"><?= e($r['asset_number']) ?></a></td>
                         <td><?= e($r['description']) ?></td>
                         <td><?= e($r['type_name']) ?></td>
                         <td class="nowrap"><?= e($r['serial_number']) ?></td>

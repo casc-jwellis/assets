@@ -56,6 +56,17 @@ function current_user(): ?array
     return app()->auth->user();
 }
 
+/** "2025-02-27 00:00:00" -> "2025-02-27"; empty/NULL -> an em dash. */
+function fmt_date(mixed $value): string
+{
+    return $value === null || $value === '' ? '—' : substr((string) $value, 0, 10);
+}
+
+function fmt_money(mixed $value): string
+{
+    return '$' . number_format((float) $value, 2);
+}
+
 /** True if $path is the current page or one of its children (sidebar highlighting). */
 function is_active(string $path): bool
 {

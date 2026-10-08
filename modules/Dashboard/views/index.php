@@ -37,7 +37,7 @@
                 <tbody>
                 <?php foreach ($recent as $row): ?>
                     <tr>
-                        <td><?= e($row['asset_number']) ?></td>
+                        <td><a href="<?= e(url('/assets/' . (int) $row['asset_id'])) ?>"><?= e($row['asset_number']) ?></a></td>
                         <td><?= e($row['description']) ?></td>
                         <td><?= e($row['type_name']) ?></td>
                         <td><span class="badge"><?= e($row['dept']) ?></span></td>

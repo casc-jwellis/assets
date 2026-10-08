@@ -30,8 +30,13 @@ final class Router
 
     public function add(string $method, string $path, callable $handler, array $opts = []): void
     {
-        // "/assets/{id}" -> named capture group matching one path segment.
-        $regex = preg_replace('#\{(\w+)\}#', '(?P<$1>[^/]+)', $path);
+        // "/assets/{id}" -> named capture group matching one path segment;
+        // "/assets/{id:\d+}" -> same, constrained by the given pattern.
+        $regex = preg_replace_callback(
+            '#\{(\w+)(?::([^}]+))?\}#',
+            static fn(array $m): string => '(?P<' . $m[1] . '>' . (($m[2] ?? '') !== '' ? $m[2] : '[^/]+') . ')',
+            $path
+        );
         $this->routes[] = [
             'method'  => $method,
             'regex'   => '#^' . $regex . '$#',
