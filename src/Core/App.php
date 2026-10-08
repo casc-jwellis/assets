@@ -86,7 +86,9 @@ final class App
 
         // 1. Nothing is reachable without logging in (unknown URLs included).
         if (!$public && !$this->auth->check()) {
-            if ($req->method === 'GET' && $req->path !== '/') {
+            // Remember where they were headed, but only for a real page: browsers also request things
+            // like /favicon.ico while signed out, and sending someone there after login gives a 404.
+            if ($req->method === 'GET' && $match['status'] === 200 && $req->path !== '/') {
                 $this->session->set('auth.next', $req->path);
             }
             Response::redirect('/login');

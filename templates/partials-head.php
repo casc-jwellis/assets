@@ -20,5 +20,6 @@ $appName = (string) app()->config->get('app.name', 'Asset Manager');
     }
 })();
 </script>
+<link rel="icon" type="image/svg+xml" href="<?= e(asset('favicon.svg')) ?>">
 <link rel="stylesheet" href="<?= e(asset('css/app.css')) ?>">
 <script src="<?= e(asset('js/app.js')) ?>" defer></script>

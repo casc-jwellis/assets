@@ -14,6 +14,13 @@ if (PHP_SAPI === 'cli-server') {
     }
 }
 
+// Browsers ask for /favicon.ico on their own. The real icon is linked from every page (static/favicon.svg),
+// so answer quietly instead of running the app (which would redirect to login or render a 404 page).
+if (basename((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH)) === 'favicon.ico') {
+    http_response_code(204);
+    exit;
+}
+
 require dirname(__DIR__) . '/src/bootstrap.php';
 
 // First run: no config yet, so send the visitor to the setup wizard.
