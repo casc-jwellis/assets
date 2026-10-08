@@ -32,6 +32,11 @@ final class AssetsModule extends Module
         $search = trim((string) $req->query('q'));
         $page = max(1, (int) $req->query('page', '1'));
 
+        // An empty search is just the plain list: keep the address bar tidy ("/assets", not "/assets?q=").
+        if ($req->query('q') !== null && $search === '') {
+            $this->redirect('/assets' . ($page > 1 ? '?page=' . $page : ''));
+        }
+
         [$where, $params] = $this->app->auth->departmentScope('a.department_id');
 
         if ($search !== '') {
