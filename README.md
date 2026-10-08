@@ -6,7 +6,9 @@ PHP 8.1+ / PDO (MySQL or MariaDB) web interface for the `assets` database. No Co
 
 Everything is done in the browser:
 
-1. Import `assets.schema.sql` into your MySQL/MariaDB database (if it isn't there already).
+1. Have a MySQL/MariaDB user ready. If the database doesn't exist, setup creates it (the user needs the
+   `CREATE` privilege), and a completely empty database is filled from `assets.schema.sql`.
+   An existing assets database is left as it is.
 2. Point the web server's document root at `public/` (Apache: `.htaccess` is included; nginx: `try_files $uri /index.php?$query_string;`).
    The `config/` folder must be writable by the web server during setup.
 3. Open the site. With no config yet you are sent to **`/setup.php`**, which asks for the database

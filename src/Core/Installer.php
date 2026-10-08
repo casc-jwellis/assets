@@ -127,6 +127,64 @@ final class Installer
         }
     }
 
+    /** True if the connection failed only because the named database doesn't exist (MySQL error 1049). */
+    public static function isUnknownDatabase(\PDOException $e): bool
+    {
+        return (int) $e->getCode() === 1049 || str_contains($e->getMessage(), '[1049]');
+    }
+
+    /**
+     * Create the database named in the setup values (the name was validated against
+     * a strict pattern, so quoting it in backticks is safe).
+     *
+     * @throws \RuntimeException
+     */
+    public static function createDatabase(array $v): void
+    {
+        try {
+            $pdo = new \PDO(
+                sprintf('mysql:host=%s;port=%d;charset=utf8mb4', $v['db_host'], $v['db_port']),
+                $v['db_user'],
+                $v['db_pass'],
+                [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
+            );
+            $pdo->exec('CREATE DATABASE `' . $v['db_name'] . '` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+        } catch (\PDOException $e) {
+            throw new \RuntimeException(
+                'The database "' . $v['db_name'] . '" does not exist and could not be created (the user needs the CREATE privilege, '
+                . 'or create it yourself first): ' . $e->getMessage()
+            );
+        }
+    }
+
+    /** Number of tables in the connected database. */
+    public static function tableCount(Database $db): int
+    {
+        return (int) $db->value('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()');
+    }
+
+    /**
+     * Run a SQL dump (e.g. assets.schema.sql) statement by statement. Returns the statement count.
+     *
+     * @throws \RuntimeException
+     */
+    public static function importSchema(Database $db, string $file): int
+    {
+        $sql = is_file($file) ? file_get_contents($file) : false;
+        if ($sql === false) {
+            throw new \RuntimeException('The schema file assets.schema.sql was not found next to the application.');
+        }
+        $statements = Migrator::splitStatements($sql);
+        try {
+            foreach ($statements as $statement) {
+                $db->pdo()->exec($statement);
+            }
+        } catch (\PDOException $e) {
+            throw new \RuntimeException('Importing assets.schema.sql failed: ' . $e->getMessage(), 0, $e);
+        }
+        return count($statements);
+    }
+
     /**
      * Create an administrator, or promote and reset the password of an existing
      * user with that username. Returns 'created' or 'updated'.

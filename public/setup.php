@@ -67,14 +67,29 @@ try {
     try {
         $db->pdo();
     } catch (PDOException $e) {
-        throw new RuntimeException('Could not connect to the database: ' . $e->getMessage());
+        if (!Installer::isUnknownDatabase($e)) {
+            throw new RuntimeException('Could not connect to the database: ' . $e->getMessage());
+        }
+        // The database doesn't exist yet: create it, then connect again.
+        Installer::createDatabase($v);
+        $steps[] = 'Created database "' . $v['db_name'] . '".';
+        try {
+            $db->pdo();
+        } catch (PDOException $e) {
+            throw new RuntimeException('Created the database but could not connect to it: ' . $e->getMessage());
+        }
     }
     $steps[] = 'Connected to database "' . $v['db_name'] . '" on ' . $v['db_host'] . '.';
 
     try {
         $db->value('SELECT COUNT(*) FROM users');
     } catch (PDOException) {
-        throw new RuntimeException('Connected, but the "users" table was not found. Import assets.schema.sql into this database first.');
+        // No users table: only safe to fill the database ourselves if it is completely empty.
+        if (Installer::tableCount($db) > 0) {
+            throw new RuntimeException('The database has tables but no "users" table, so it does not look like an assets database. Check the database name.');
+        }
+        $count = Installer::importSchema($db, APP_ROOT . '/assets.schema.sql');
+        $steps[] = 'The database was empty, so the tables were created from assets.schema.sql (' . $count . ' statements).';
     }
 
     if ($v['migrate']) {

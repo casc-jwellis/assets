@@ -40,6 +40,7 @@
             <div class="field">
                 <label for="db_name">Database name</label>
                 <input type="text" id="db_name" name="db_name" value="<?= e($f['db_name']) ?>" required>
+                <small class="muted">Created automatically if it doesn't exist (the user needs the CREATE privilege). A new, empty database is filled from <code>assets.schema.sql</code>.</small>
             </div>
             <div class="field-row even">
                 <div class="field">
