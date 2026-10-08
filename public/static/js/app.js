@@ -70,6 +70,20 @@
         update();
     });
 
+    // ----- File inputs with a size limit: <input type="file" data-max-bytes="N"> in a form with [data-upload-warning] -----
+    document.querySelectorAll('input[type="file"][data-max-bytes]').forEach(function (input) {
+        var max = parseInt(input.getAttribute('data-max-bytes'), 10) || 0;
+        var form = input.form;
+        var warning = form && form.querySelector('[data-upload-warning]');
+        var submit = form && form.querySelector('button[type="submit"]');
+        if (!max || !warning) { return; }
+        input.addEventListener('change', function () {
+            var tooBig = input.files.length > 0 && input.files[0].size > max;
+            warning.hidden = !tooBig;
+            if (submit) { submit.disabled = tooBig; }
+        });
+    });
+
     // ----- Mobile sidebar -----
     var body = document.body;
     document.querySelectorAll('[data-nav-toggle]').forEach(function (btn) {

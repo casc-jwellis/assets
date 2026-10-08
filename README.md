@@ -18,6 +18,15 @@ Everything is done in the browser:
    (plus ALTER/CREATE if you want the web migrations to run under it).
 4. Sign in. Later schema changes: **`/migrate.php`** (administrators only) lists and applies pending migrations.
 
+### Importing the legacy data (one-time)
+
+Once setup is done and every migration is applied, an administrator can open **Import** in the sidebar
+(`/import`) and upload a `.sql` data dump (phpMyAdmin / mysqldump `INSERT` statements) from the old application.
+The file is parsed, never executed; you review every automatic fix and warning before anything is written, then
+the data tables are replaced in one transaction (your own account is kept). Large dumps need
+`upload_max_filesize` and `post_max_size` raised in php.ini and, behind nginx, `client_max_body_size`
+(nginx's default is only 1 MB). After the cutover, delete the `modules/Import` folder to remove the tool.
+
 ### Migrations
 
 `migrations/*.sql` are applied once each, in filename order, and recorded in a `schema_migrations` table.

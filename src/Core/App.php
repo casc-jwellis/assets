@@ -96,7 +96,11 @@ final class App
 
         // 2. CSRF for every state-changing request, including the login form.
         if ($req->method !== 'GET' && !$this->csrf->verify($req)) {
-            $this->error(403, 'Security check failed', 'Your session or form token has expired. Go back, reload the page and try again.');
+            // A request bigger than post_max_size arrives with an empty $_POST, which looks like a missing token.
+            $tooBig = $_POST === [] && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0;
+            $this->error(403, 'Security check failed', $tooBig
+                ? 'The upload was larger than the server accepts (post_max_size ' . ini_get('post_max_size') . '). Raise post_max_size and upload_max_filesize in php.ini (and client_max_body_size in nginx), or use a smaller file.'
+                : 'Your session or form token has expired. Go back, reload the page and try again.');
         }
 
         if ($match['status'] === 404) {
