@@ -9,20 +9,24 @@
 --   * The assets stay in the RETIRE department; nothing is moved. An administrator picks a
 --     real department when restoring one.
 --   * Safe to run again: only assets not yet marked retired are touched.
+--
+-- The most recent RETIRE transfer of every asset is worked out once (the derived table), then
+-- joined. Looking it up per asset with a correlated subquery made the server rescan the whole
+-- transfers table for each retired asset, which took about a minute on a few thousand assets.
 
-UPDATE `assets`
-   SET `retired_by` = (
-           SELECT t.user_id FROM transfers t
-            WHERE t.asset_id = assets.asset_id AND t.department_to = 'RETIRE'
-            ORDER BY t.transfer_date DESC, t.transfer_id DESC LIMIT 1),
-       `retired_notes` = NULLIF(TRIM((
-           SELECT t.reason FROM transfers t
-            WHERE t.asset_id = assets.asset_id AND t.department_to = 'RETIRE'
-            ORDER BY t.transfer_date DESC, t.transfer_id DESC LIMIT 1)), ''),
-       `disposal_method` = CASE LOWER(TRIM((
-           SELECT t.reason FROM transfers t
-            WHERE t.asset_id = assets.asset_id AND t.department_to = 'RETIRE'
-            ORDER BY t.transfer_date DESC, t.transfer_id DESC LIMIT 1)))
+UPDATE `assets` a
+  LEFT JOIN (
+        SELECT r.asset_id, r.user_id, r.reason, r.transfer_date
+          FROM (SELECT t.asset_id, t.user_id, t.reason, t.transfer_date,
+                       ROW_NUMBER() OVER (PARTITION BY t.asset_id
+                                              ORDER BY t.transfer_date DESC, t.transfer_id DESC) AS rn
+                  FROM transfers t
+                 WHERE t.department_to = 'RETIRE') r
+         WHERE r.rn = 1
+       ) lt ON lt.asset_id = a.asset_id
+   SET a.`retired_by` = lt.user_id,
+       a.`retired_notes` = NULLIF(TRIM(lt.reason), ''),
+       a.`disposal_method` = CASE LOWER(TRIM(lt.reason))
            WHEN 'surplus'   THEN 'Surplus'
            WHEN 'recycled'  THEN 'Recycled'
            WHEN 'recycle'   THEN 'Recycled'
@@ -37,10 +41,7 @@ UPDATE `assets`
            WHEN 'stolen'    THEN 'Stolen'
            WHEN 'other'     THEN 'Other'
            ELSE NULL END,
-       `retired_date` = (
-           SELECT t.transfer_date FROM transfers t
-            WHERE t.asset_id = assets.asset_id AND t.department_to = 'RETIRE'
-            ORDER BY t.transfer_date DESC, t.transfer_id DESC LIMIT 1),
-       `retired` = 1
- WHERE `retired` = 0
-   AND `department_id` IN (SELECT d.department_id FROM departments d WHERE d.abbr = 'RETIRE');
+       a.`retired_date` = lt.transfer_date,
+       a.`retired` = 1
+ WHERE a.`retired` = 0
+   AND a.`department_id` IN (SELECT d.department_id FROM departments d WHERE d.abbr = 'RETIRE');

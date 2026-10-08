@@ -10,20 +10,26 @@
 --   * Only the department changes; building and room stay as they are, and no transfer rows are
 --     written (this corrects the data, it is not a physical move).
 --   * Safe to run again: moved assets are no longer in RETIRE.
+--
+-- The most recent RETIRE transfer of every asset is worked out once (the derived table), then
+-- joined; see the note in migration 007 for why this is not a per-asset subquery.
 
-UPDATE `assets`
-   SET `department_id` = (
-           SELECT d.department_id FROM departments d
-            WHERE d.abbr <> 'RETIRE'
-              AND d.abbr = (SELECT t.department_from FROM transfers t
-                             WHERE t.asset_id = assets.asset_id AND t.department_to = 'RETIRE'
-                             ORDER BY t.transfer_date DESC, t.transfer_id DESC LIMIT 1)
-            LIMIT 1)
- WHERE `retired` = 1
-   AND `department_id` IN (SELECT d.department_id FROM departments d WHERE d.abbr = 'RETIRE')
-   AND (SELECT d.department_id FROM departments d
+UPDATE `assets` a
+  JOIN (
+        SELECT r.asset_id, r.department_from
+          FROM (SELECT t.asset_id, t.department_from,
+                       ROW_NUMBER() OVER (PARTITION BY t.asset_id
+                                              ORDER BY t.transfer_date DESC, t.transfer_id DESC) AS rn
+                  FROM transfers t
+                 WHERE t.department_to = 'RETIRE') r
+         WHERE r.rn = 1
+       ) lt ON lt.asset_id = a.asset_id
+  JOIN (
+        SELECT d.abbr, MIN(d.department_id) AS department_id
+          FROM departments d
          WHERE d.abbr <> 'RETIRE'
-           AND d.abbr = (SELECT t.department_from FROM transfers t
-                          WHERE t.asset_id = assets.asset_id AND t.department_to = 'RETIRE'
-                          ORDER BY t.transfer_date DESC, t.transfer_id DESC LIMIT 1)
-         LIMIT 1) IS NOT NULL;
+         GROUP BY d.abbr
+       ) nd ON nd.abbr = lt.department_from
+   SET a.`department_id` = nd.department_id
+ WHERE a.`retired` = 1
+   AND a.`department_id` IN (SELECT d.department_id FROM departments d WHERE d.abbr = 'RETIRE');
