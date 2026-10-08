@@ -218,6 +218,8 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
     margin-bottom: 20px;
 }
 .stat { padding: 16px 18px; }
+a.stat-link { display: block; color: inherit; text-decoration: none; }
+a.stat-link:hover { border-color: var(--accent); color: inherit; text-decoration: none; }
 .stat-label { color: var(--muted); font-size: .85rem; }
 .stat-value { font-size: 1.75rem; font-weight: 650; letter-spacing: -0.02em; margin-top: 2px; }
 
@@ -344,6 +346,7 @@ input:disabled { opacity: .6; cursor: not-allowed; }
 .alert { padding: 10px 14px; border-radius: 8px; border: 1px solid; margin-bottom: 16px; font-size: .92rem; }
 .alert-danger  { background: var(--danger-bg);  border-color: var(--danger-border);  color: var(--danger); }
 .alert-success { background: var(--success-bg); border-color: var(--success-border); color: var(--success); }
+.alert-warning { background: var(--warn-bg);    border-color: var(--warn);            color: var(--warn); }
 .alert-info    { background: var(--info-bg);    border-color: var(--info-border);    color: var(--info); }
 
 /* ---------- Login / error pages ---------- */
@@ -356,6 +359,26 @@ input:disabled { opacity: .6; cursor: not-allowed; }
 .auth-brand .brand-mark { width: 44px; height: 44px; border-radius: 12px; margin-bottom: 10px; }
 .auth-brand h1 { font-size: 1.35rem; }
 
+.search-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.search-form select { width: auto; }
+.check-col { width: 36px; padding-right: 0 !important; }
+.check-col input { accent-color: var(--accent); width: 16px; height: 16px; vertical-align: middle; }
+.is-retired td { color: var(--muted); }
+.more-note { padding: 0 18px 14px; }
+.bulk-bar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 10px 18px;
+    background: var(--accent-soft);
+    border-bottom: 1px solid var(--border);
+    border-radius: 12px 12px 0 0;
+}
+.bulk-bar[hidden], .bulk-bar [hidden] { display: none; }
+.bulk-count { font-weight: 600; }
+.bulk-buttons { margin-left: auto; display: flex; gap: 8px; }
+.btn-link { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
 .back-link { display: inline-block; margin-bottom: 6px; font-size: .88rem; }
 .page-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .section { margin-top: 20px; }

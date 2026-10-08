@@ -113,6 +113,16 @@ final class App
         echo ($match['handler'])($req, $match['params']);
     }
 
+    /** @var array<string,bool> */
+    private array $migrationCache = [];
+
+    /** Has this migration been applied? Lets a feature switch itself on only once its schema exists. */
+    public function migrationApplied(string $name): bool
+    {
+        return $this->migrationCache[$name]
+            ??= (new Migrator($this->db, APP_ROOT . '/migrations'))->isApplied($name);
+    }
+
     /** @return list<array{label:string,path:string,icon:string,order:int,admin:bool}> nav entries visible to the current user */
     public function navItems(): array
     {

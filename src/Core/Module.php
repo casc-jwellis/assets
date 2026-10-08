@@ -52,9 +52,9 @@ abstract class Module
      * Build the list state from validated pieces only (never echo the raw query string), so the
      * link can only ever carry a text search and a page number back to the list.
      */
-    protected function listState(string $search, int $page): string
+    protected function listState(string $search, int $page, array $extra = []): string
     {
-        $qs = http_build_query(array_filter(['q' => $search, 'page' => $page > 1 ? $page : null]));
+        $qs = http_build_query(array_filter(['q' => $search, 'page' => $page > 1 ? $page : null] + $extra));
         return $qs === '' ? '' : '?' . $qs;
     }
 

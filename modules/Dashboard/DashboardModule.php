@@ -25,13 +25,21 @@ final class DashboardModule extends Module
         $db = $this->app->db;
         [$scope, $params] = $this->app->auth->departmentScope('a.department_id');
 
+        // Totals describe assets in service; retired ones are counted separately (once migration 006 exists).
+        $retirement = $this->app->migrationApplied('006_asset_retirement.sql');
+        $active = $retirement ? ' AND a.retired = 0' : '';
+
         $stats = $db->one(
             "SELECT COUNT(*) AS total,
                     COALESCE(SUM(a.cost), 0) AS total_cost,
                     COALESCE(SUM(CASE WHEN a.verified_date IS NULL THEN 1 ELSE 0 END), 0) AS unverified
-               FROM assets a WHERE {$scope}",
+               FROM assets a WHERE {$scope}{$active}",
             $params
         ) ?? ['total' => 0, 'total_cost' => 0, 'unverified' => 0];
+
+        $retired = $retirement
+            ? (int) $db->value("SELECT COUNT(*) FROM assets a WHERE {$scope} AND a.retired = 1", $params)
+            : null;
 
         $recent = $db->all(
             "SELECT a.asset_id, a.asset_number, a.description, a.created_date,
@@ -39,16 +47,17 @@ final class DashboardModule extends Module
                FROM assets a
                LEFT JOIN asset_types t ON t.type_id = a.type_id
                LEFT JOIN departments d ON d.department_id = a.department_id
-              WHERE {$scope}
+              WHERE {$scope}{$active}
               ORDER BY a.created_date DESC, a.asset_id DESC
               LIMIT 8",
             $params
         );
 
         return $this->render('index', [
-            'title'  => 'Dashboard',
-            'stats'  => $stats,
-            'recent' => $recent,
+            'title'   => 'Dashboard',
+            'stats'   => $stats,
+            'retired' => $retired,
+            'recent'  => $recent,
         ]);
     }
 }

@@ -1,5 +1,6 @@
 <?php
-/** Expects $a (asset row with joined names), $transfers (list), $depreciation (array|null), $updatedBy (string), $canEdit (bool), $listQs (string). */
+/** Expects $a (asset row with joined names), $transfers (list), $depreciation (array|null), $updatedBy (string),
+ *  $retired (bool), $retiredBy (string), $canEdit, $canRetire, $canRestore (bool), $listQs (string). */
 $creator = trim(($a['creator_first'] ?? '') . ' ' . ($a['creator_last'] ?? ''));
 $location = trim(($a['building_name'] ?? '') . ($a['room'] !== '' ? ', room ' . $a['room'] : ''), ', ');
 ?>
@@ -11,7 +12,9 @@ $location = trim(($a['building_name'] ?? '') . ($a['room'] !== '' ? ', room ' . 
     </div>
     <div class="page-actions">
         <span class="badge"><?= e($a['dept_abbr']) ?></span>
-        <?php if (empty($a['verified_date'])): ?>
+        <?php if ($retired): ?>
+            <span class="badge badge-danger">Retired</span>
+        <?php elseif (empty($a['verified_date'])): ?>
             <span class="badge badge-warn">Never verified</span>
         <?php else: ?>
             <span class="badge badge-ok">Verified <?= e(fmt_date($a['verified_date'])) ?></span>
@@ -21,10 +24,33 @@ $location = trim(($a['building_name'] ?? '') . ($a['room'] !== '' ? ', room ' . 
                 <?= csrf_field() ?>
                 <button type="submit" class="btn" title="Record that this asset was physically checked today">Mark verified</button>
             </form>
-            <a class="btn btn-primary" href="<?= e(url('/assets/' . (int) $a['asset_id'] . '/edit') . $listQs) ?>">Edit</a>
+            <a class="btn" href="<?= e(url('/assets/' . (int) $a['asset_id'] . '/edit') . $listQs) ?>">Edit</a>
+        <?php endif; ?>
+        <?php if ($canRetire): ?>
+            <?php /* A single asset retires through the same review page as a bulk retire. */ ?>
+            <form method="post" action="<?= e(url('/assets/bulk') . $listQs) ?>" class="inline-form">
+                <?= csrf_field() ?>
+                <input type="hidden" name="action" value="retire">
+                <input type="hidden" name="ids[]" value="<?= e((int) $a['asset_id']) ?>">
+                <button type="submit" class="btn">Retire…</button>
+            </form>
+        <?php endif; ?>
+        <?php if ($canRestore): ?>
+            <a class="btn btn-primary" href="<?= e(url('/assets/' . (int) $a['asset_id'] . '/restore') . $listQs) ?>">Restore…</a>
         <?php endif; ?>
     </div>
 </div>
+
+<?php if ($retired): ?>
+    <div class="alert alert-warning" role="status">
+        <strong>This asset is retired</strong>
+        <?= !empty($a['retired_date']) ? 'on ' . e(fmt_date($a['retired_date'])) : '(date not recorded)' ?><?php if (!empty($a['disposal_method'])): ?>
+            &middot; <?= e($a['disposal_method']) ?><?php endif; ?><?php if ($retiredBy !== ''): ?>
+            &middot; by <?= e($retiredBy) ?><?php endif; ?>.
+        <?php if (!empty($a['retired_notes'])): ?><br><?= e($a['retired_notes']) ?><?php endif; ?>
+        It cannot be edited, moved or verified<?= $canRestore ? '' : ' unless an administrator restores it' ?>.
+    </div>
+<?php endif; ?>
 
 <div class="card">
     <div class="card-head"><h2>Details</h2></div>

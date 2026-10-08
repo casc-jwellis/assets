@@ -1,4 +1,4 @@
-<?php /** Expects $stats (array), $recent (list of asset rows). */ ?>
+<?php /** Expects $stats (array), $retired (int|null), $recent (list of asset rows). */ ?>
 <div class="page-head">
     <div>
         <h1>Welcome back, <?= e(current_user()['firstname'] ?: current_user()['username']) ?></h1>
@@ -19,6 +19,12 @@
         <div class="stat-label">Never verified</div>
         <div class="stat-value"><?= e(number_format((int) $stats['unverified'])) ?></div>
     </div>
+    <?php if ($retired !== null): ?>
+        <a class="card stat stat-link" href="<?= e(url('/assets') . '?status=retired') ?>">
+            <div class="stat-label">Retired</div>
+            <div class="stat-value"><?= e(number_format($retired)) ?></div>
+        </a>
+    <?php endif; ?>
 </div>
 
 <div class="card">
