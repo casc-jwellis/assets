@@ -1,7 +1,7 @@
 <?php
 /** Expects $a (asset row with joined names), $transfers (list), $depreciation (array|null), $updatedBy (string),
  *  $retired (bool), $retiredBy (string), $canEdit, $canRetire, $canRestore (bool), $listQs (string). */
-$creator = trim(($a['creator_first'] ?? '') . ' ' . ($a['creator_last'] ?? ''));
+$creator = trim(($a['creator_first'] ?? '') . ' ' . ($a['creator_last'] ?? '')) ?: (string) ($a['creator_username'] ?? '');
 $location = trim(($a['building_name'] ?? '') . ($a['room'] !== '' ? ', room ' . $a['room'] : ''), ', ');
 ?>
 <div class="page-head">
@@ -78,7 +78,7 @@ $location = trim(($a['building_name'] ?? '') . ($a['room'] !== '' ? ', room ' . 
             </dd>
         </div>
         <div><dt>Last verified</dt><dd><?= e(fmt_date($a['verified_date'])) ?></dd></div>
-        <div><dt>Added by</dt><dd><?= e($creator !== '' ? $creator : $a['user_id']) ?></dd></div>
+        <div><dt>Added by</dt><dd><?= e($creator !== '' ? $creator : 'Missing user') ?></dd></div>
         <div><dt>Added on</dt><dd><?= e(fmt_date($a['created_date'])) ?></dd></div>
         <?php if (!empty($a['updated_date'])): ?>
             <div><dt>Last changed</dt><dd><?= e(fmt_date($a['updated_date'])) ?> <span class="muted">by <?= e($updatedBy) ?></span></dd></div>
@@ -107,13 +107,13 @@ $location = trim(($a['building_name'] ?? '') . ($a['room'] !== '' ? ', room ' . 
                 </thead>
                 <tbody>
                 <?php foreach ($transfers as $t): ?>
-                    <?php $by = trim(($t['firstname'] ?? '') . ' ' . ($t['lastname'] ?? '')); ?>
+                    <?php $by = trim(($t['firstname'] ?? '') . ' ' . ($t['lastname'] ?? '')) ?: (string) ($t['username'] ?? ''); ?>
                     <tr>
                         <td class="nowrap"><?= e(fmt_date($t['transfer_date'])) ?></td>
                         <td class="nowrap"><span class="badge"><?= e($t['department_from']) ?></span> <?= e($t['location_from']) ?></td>
                         <td class="nowrap"><span class="badge<?= $t['department_to'] === 'RETIRE' ? ' badge-warn' : '' ?>"><?= e($t['department_to']) ?></span> <?= e($t['location_to']) ?></td>
                         <td><?= e($t['reason'] ?? '') ?></td>
-                        <td><?= e($by !== '' ? $by : $t['user_id']) ?></td>
+                        <td><?= e($by !== '' ? $by : 'Missing user') ?></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>

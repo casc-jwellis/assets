@@ -131,7 +131,7 @@ final class ImportModule extends Module
         try {
             $analysis = $this->analyzeFile($path);
             $admin = $this->app->auth->user();
-            $result = (new LegacyImporter($this->app->db))->execute($analysis['plan'], (string) $admin['user_id'], APP_ROOT . '/migrations');
+            $result = (new LegacyImporter($this->app->db))->execute($analysis['plan'], (int) $admin['user_id'], APP_ROOT . '/migrations');
         } catch (\Throwable $e) {
             error_log('import failed: ' . $e->getMessage());
             $this->fail('The import failed and nothing was changed: ' . $e->getMessage());

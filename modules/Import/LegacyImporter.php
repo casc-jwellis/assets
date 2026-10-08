@@ -26,6 +26,9 @@ final class LegacyImporter
 
     private const EPOCH = '1970-01-01 00:00:00';
 
+    /** Username of the disabled "Missing user" placeholder (see migration 009 and UsersModule::PLACEHOLDER). */
+    private const PLACEHOLDER = 'missing-user';
+
     /**
      * Column types: id (required positive int), int (>= 0), bool, sN / sNn (text up to N chars, n = nullable),
      * money, dt (datetime), dtn (nullable datetime), perm (r / rw).
@@ -81,47 +84,75 @@ final class LegacyImporter
         $rows['buildings'] = $this->unique($rows['buildings'], ['building_id'], 'buildings');
         $rows['asset_types'] = $this->unique($rows['asset_types'], ['type_id'], 'asset types');
 
-        $this->fixUsers($rows, $admin);
-        $rows['permissions'] = $this->fixPermissions($rows, $admin);
-        $this->fixAssets($rows);
-        $this->fixTransfers($rows);
+        // The dump's user IDs are text. Each user gets a new number, and every reference is translated.
+        $ids = $this->fixUsers($rows, $admin);
+        $rows['permissions'] = $this->fixPermissions($rows, $ids);
+        $this->fixAssets($rows, $ids);
+        $this->fixTransfers($rows, $ids);
 
         $tables = [];
         foreach (self::ORDER as $table) {
-            $tables[$table] = ['dump' => $in[$table], 'import' => count($rows[$table])];
+            // the "Missing user" placeholder is added to the users, but it is not a row from the dump
+            $tables[$table] = ['dump' => $in[$table], 'import' => count($rows[$table]) - ($table === 'users' ? 1 : 0)];
         }
         return ['rows' => $rows, 'report' => ['tables' => $tables, 'fixes' => $this->fixes, 'warnings' => $this->warnings]];
     }
 
-    private function fixUsers(array &$rows, array $admin): void
+    /**
+     * Give every dumped user a new integer ID and add the "Missing user" placeholder.
+     *
+     * @return array{map: array<string,int>, digits: array<string,int|false>, missing: int}
+     *         map: old text ID => new ID; digits: the same keyed by the number without leading zeros
+     *         (a fallback for IDs that lost their zeros, as in the old transfers table); missing: the placeholder's ID
+     */
+    private function fixUsers(array &$rows, array $admin): array
     {
         $rows['users'] = $this->unique($rows['users'], ['user_id'], 'users');
         $deptIds = array_flip(array_column($rows['departments'], 'department_id'));
+        $adminId = (int) $admin['user_id'];
         $adminName = strtolower((string) $admin['username']);
 
         $kept = [];
         $names = [];
+        $map = [];
+        $next = 1;
+        $newId = static function () use (&$next, $adminId): int {
+            while ($next === $adminId) { // the signed-in admin keeps their own number
+                $next++;
+            }
+            return $next++;
+        };
+        $adminSeen = false;
+
         foreach ($rows['users'] as $u) {
+            $legacy = $u['user_id'];
             // The signed-in admin's account is never replaced, or the import could lock you out.
-            if ($u['user_id'] === (string) $admin['user_id']) {
-                $this->fix('admin_kept', 'Your own account was in the dump; your current account and password were kept', $u['user_id']);
+            // Anyone in the dump with the same username is taken to be you: references go to your account.
+            if (strtolower($u['username']) === $adminName) {
+                $map[$legacy] = $adminId;
+                if ($adminSeen) {
+                    $this->warn('admin_name_clash', 'Several users in the dump share your username; all were treated as your account', $legacy);
+                } else {
+                    $this->fix('admin_kept', 'Your own account was in the dump; your current account and password were kept', $u['username']);
+                }
+                $adminSeen = true;
                 continue;
             }
-            if (strtolower($u['username']) === $adminName) {
-                $this->warn('admin_name_clash', 'Users skipped because their username matches your account (' . $admin['username'] . ')', $u['user_id']);
+            if (strtolower($u['username']) === self::PLACEHOLDER) {
+                $this->warn('placeholder_name', 'Users skipped because "missing-user" is reserved for the placeholder', $legacy);
                 continue;
             }
             if ($u['username'] === '') {
-                $u['username'] = $u['user_id'];
-                $this->fix('empty_username', 'Users with no username now use their user ID as the username', $u['user_id']);
+                $u['username'] = $legacy;
+                $this->fix('empty_username', 'Users with no username now use their old ID as the username', $legacy);
             }
             if ($u['department_id'] !== 0 && !isset($deptIds[$u['department_id']])) {
-                $this->fix('user_dept', 'Users whose home department no longer exists were set to "None"', $u['user_id']);
+                $this->fix('user_dept', 'Users whose home department no longer exists were set to "None"', $u['username']);
                 $u['department_id'] = 0;
             }
             if (!in_array($u['timezone'], \DateTimeZone::listIdentifiers(), true)) {
                 $u['timezone'] = 'UTC';
-                $this->fix('timezone', 'Users with a missing or unknown time zone were set to UTC', $u['user_id']);
+                $this->fix('timezone', 'Users with a missing or unknown time zone were set to UTC', $u['username']);
             }
             if (strtolower($u['password']) === self::DEFAULT_PASSWORD_HASH) {
                 $this->warn('default_password', 'Users still have the old default password and should change it', $u['username']);
@@ -133,24 +164,71 @@ final class LegacyImporter
                 $this->warn('dup_username', 'Usernames shared by more than one user (sign-in picks one of them; rename the others)', $u['username']);
             }
             $names[$key] = true;
+
+            $u['user_id'] = $newId();
+            $u['disabled'] = 0;
+            $map[$legacy] = $u['user_id'];
             $kept[] = $u;
         }
+
+        // The stand-in for people who no longer exist (same row migration 009 creates).
+        $missing = $newId();
+        $kept[] = [
+            'user_id' => $missing, 'username' => self::PLACEHOLDER, 'password' => '', 'firstname' => '', 'lastname' => 'Missing user',
+            'email' => '', 'department_id' => 0, 'admin' => 0, 'timezone' => 'UTC', 'lastlogin' => self::EPOCH, 'disabled' => 1,
+        ];
         $rows['users'] = $kept;
+
+        $digits = [];
+        foreach ($map as $legacy => $id) {
+            $legacy = (string) $legacy;
+            if ($legacy !== '' && ctype_digit($legacy)) {
+                $k = ltrim($legacy, '0') ?: '0';
+                $digits[$k] = isset($digits[$k]) ? false : $id; // two IDs that differ only in leading zeros are ambiguous
+            }
+        }
+        return ['map' => $map, 'digits' => $digits, 'missing' => $missing];
+    }
+
+    /** The new ID for an old text ID, or null when there is no such user. */
+    private function lookupUser(?string $legacy, array $ids): ?int
+    {
+        $legacy = (string) $legacy;
+        if (isset($ids['map'][$legacy])) {
+            return $ids['map'][$legacy];
+        }
+        if ($legacy !== '' && ctype_digit($legacy)) {
+            $found = $ids['digits'][ltrim($legacy, '0') ?: '0'] ?? false;
+            return $found === false ? null : $found;
+        }
+        return null;
+    }
+
+    /** Like lookupUser(), but anything unknown or blank is attached to the "Missing user" placeholder. */
+    private function userRef(?string $legacy, array $ids, string $ctx): int
+    {
+        $id = $this->lookupUser($legacy, $ids);
+        if ($id !== null) {
+            return $id;
+        }
+        $this->fix('missing_user', 'References to people who no longer exist were attached to the "Missing user" placeholder', $ctx . ' (' . ((string) $legacy === '' ? 'blank' : $legacy) . ')');
+        return $ids['missing'];
     }
 
     /** @return list<array<string,mixed>> */
-    private function fixPermissions(array $rows, array $admin): array
+    private function fixPermissions(array $rows, array $ids): array
     {
-        $users = array_flip(array_merge(array_column($rows['users'], 'user_id'), [(string) $admin['user_id']]));
         $depts = array_flip(array_column($rows['departments'], 'department_id'));
         $out = [];
         $seen = [];
         foreach ($rows['permissions'] as $p) {
-            if (!isset($users[$p['user_id']]) || !isset($depts[$p['department_id']])) {
+            $uid = $this->lookupUser($p['user_id'], $ids);
+            if ($uid === null || !isset($depts[$p['department_id']])) {
                 $this->fix('perm_orphan', 'Permission rows dropped because their user or department does not exist', $p['user_id'] . ' / dept ' . $p['department_id']);
                 continue;
             }
-            $key = $p['user_id'] . "\0" . $p['department_id'];
+            $p['user_id'] = $uid;
+            $key = $uid . "\0" . $p['department_id'];
             if (isset($seen[$key])) {
                 continue;
             }
@@ -160,7 +238,7 @@ final class LegacyImporter
         return $out;
     }
 
-    private function fixAssets(array &$rows): void
+    private function fixAssets(array &$rows, array $ids): void
     {
         $rows['assets'] = $this->unique($rows['assets'], ['asset_id'], 'assets');
         $types = array_flip(array_column($rows['asset_types'], 'type_id'));
@@ -171,6 +249,7 @@ final class LegacyImporter
 
         foreach ($rows['assets'] as &$a) {
             $label = $a['asset_number'] !== '' ? $a['asset_number'] : '#' . $a['asset_id'];
+            $a['user_id'] = $this->userRef($a['user_id'], $ids, 'asset ' . $label);
 
             // Asset numbers must be present and unique.
             if (trim($a['asset_number']) === '') {
@@ -226,7 +305,7 @@ final class LegacyImporter
         $rows['asset_types'] = array_merge($rows['asset_types'], $newTypes);
     }
 
-    private function fixTransfers(array &$rows): void
+    private function fixTransfers(array &$rows, array $ids): void
     {
         $rows['transfers'] = $this->unique($rows['transfers'], ['transfer_id'], 'transfers');
         $assets = array_flip(array_column($rows['assets'], 'asset_id'));
@@ -236,6 +315,7 @@ final class LegacyImporter
                 $this->fix('transfer_orphan', 'Transfer rows dropped because their asset does not exist', 'transfer #' . $t['transfer_id'] . ' (asset #' . $t['asset_id'] . ')');
                 continue;
             }
+            $t['user_id'] = $this->userRef($t['user_id'], $ids, 'transfer #' . $t['transfer_id']);
             if ($t['transfer_date'] === null) {
                 $t['transfer_date'] = self::EPOCH;
                 $this->fix('transfer_date', 'Transfers with a missing date were dated 1970-01-01', 'transfer #' . $t['transfer_id']);
@@ -389,7 +469,7 @@ final class LegacyImporter
      * @param array{rows: array<string, list<array<string,mixed>>>} $plan
      * @return array<string,mixed> facts about the result
      */
-    public function execute(array $plan, string $keepUserId, string $migrationsDir): array
+    public function execute(array $plan, int $keepUserId, string $migrationsDir): array
     {
         $pdo = $this->db->pdo();
         $pdo->beginTransaction();

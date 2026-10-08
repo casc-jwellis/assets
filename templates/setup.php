@@ -64,7 +64,7 @@
             <div class="field-row even">
                 <div class="field">
                     <label for="admin_user">Username</label>
-                    <input type="text" id="admin_user" name="admin_user" value="<?= e($f['admin_user']) ?>" maxlength="16" autocomplete="off">
+                    <input type="text" id="admin_user" name="admin_user" value="<?= e($f['admin_user']) ?>" maxlength="64" autocomplete="off">
                 </div>
                 <div class="field">
                     <label for="admin_email">Email</label>

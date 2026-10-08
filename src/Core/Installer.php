@@ -54,8 +54,8 @@ final class Installer
 
         $wantsAdmin = $v['admin_user'] !== '' || $v['admin_pass'] !== '';
         if ($wantsAdmin) {
-            if (!preg_match('/^[A-Za-z0-9._@-]{1,16}$/', $v['admin_user'])) {
-                $errors[] = 'Administrator username: up to 16 letters, numbers or . _ @ -';
+            if (!preg_match('/^[A-Za-z0-9._@-]{1,64}$/', $v['admin_user'])) {
+                $errors[] = 'Administrator username: up to 64 letters, numbers or . _ @ -';
             }
             if (strlen($v['admin_pass']) < 10) {
                 $errors[] = 'The administrator password must be at least 10 characters.';
@@ -200,19 +200,23 @@ final class Installer
             $existing = $db->one('SELECT user_id FROM users WHERE username = ?', [$v['admin_user']]);
 
             if ($existing !== null) {
-                $userId = (string) $existing['user_id'];
+                $userId = (int) $existing['user_id'];
                 $db->execute('UPDATE users SET password = ?, admin = 1 WHERE user_id = ?', [$hash, $userId]);
                 $result = 'updated';
             } else {
-                $userId = $v['admin_user'];
-                if ($db->one('SELECT 1 FROM users WHERE user_id = ?', [$userId]) !== null) {
-                    throw new \RuntimeException("A different user already has the ID \"{$userId}\".");
+                // user_id is an auto-incrementing integer (migrations 009-013), so the database assigns it.
+                try {
+                    $db->execute(
+                        'INSERT INTO users (username, password, firstname, lastname, email, department_id, admin, timezone, lastlogin)
+                         VALUES (?, ?, ?, ?, ?, 0, 1, ?, ?)',
+                        [$v['admin_user'], $hash, $v['admin_first'], $v['admin_last'], $v['admin_email'], 'UTC', date('Y-m-d H:i:s')]
+                    );
+                } catch (\PDOException $e) {
+                    throw new \RuntimeException(
+                        'The administrator could not be created (' . $e->getMessage() . '). If the database has not been updated yet, tick "apply database updates" and try again.'
+                    );
                 }
-                $db->execute(
-                    'INSERT INTO users (user_id, username, password, firstname, lastname, email, department_id, admin, timezone, lastlogin)
-                     VALUES (?, ?, ?, ?, ?, ?, 0, 1, ?, ?)',
-                    [$userId, $v['admin_user'], $hash, $v['admin_first'], $v['admin_last'], $v['admin_email'], 'UTC', date('Y-m-d H:i:s')]
-                );
+                $userId = (int) $pdo->lastInsertId();
                 $result = 'created';
             }
 

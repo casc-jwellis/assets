@@ -27,7 +27,7 @@ final class AccountModule extends Module
     public function changePassword(Request $req): string
     {
         $auth = $this->app->auth;
-        $uid = (string) $auth->user()['user_id'];
+        $uid = (int) $auth->user()['user_id'];
         $current = (string) $req->post('current');
         $new = (string) $req->post('new');
         $confirm = (string) $req->post('confirm');

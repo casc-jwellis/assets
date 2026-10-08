@@ -64,7 +64,13 @@ $never = static fn($v): bool => $v === null || $v === '' || str_starts_with((str
                 <?php foreach ($rows as $r): ?>
                     <?php $name = trim($r['lastname'] . ($r['lastname'] !== '' && $r['firstname'] !== '' ? ', ' : '') . $r['firstname']); ?>
                     <tr>
-                        <td><a href="<?= e(url('/users/' . rawurlencode((string) $r['user_id'])) . $listQs) ?>"><?= e($name !== '' ? $name : $r['username']) ?></a></td>
+                        <td>
+                            <?php if ($r['username'] === 'missing-user'): ?>
+                                <?= e($name) ?> <span class="badge" title="Stands in for people who no longer exist, so old assets and history stay readable">System placeholder</span>
+                            <?php else: ?>
+                                <a href="<?= e(url('/users/' . (int) $r['user_id']) . $listQs) ?>"><?= e($name !== '' ? $name : $r['username']) ?></a>
+                            <?php endif; ?>
+                        </td>
                         <td><?= e($r['username']) ?></td>
                         <td class="nowrap"><?= e($r['user_id']) ?></td>
                         <td><?= e($r['email']) ?></td>

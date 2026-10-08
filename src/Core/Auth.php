@@ -29,8 +29,10 @@ final class Auth
         }
         $this->loaded = true;
 
+        // User IDs are integers. A session from before the IDs were converted holds a string here
+        // and is simply treated as signed out (it must never be matched against the new numbers).
         $uid = $this->session->get('auth.uid');
-        if (!is_string($uid) || $uid === '') {
+        if (!is_int($uid) || $uid < 1) {
             return null;
         }
 
@@ -101,12 +103,12 @@ final class Auth
 
         // Upgrade legacy / outdated hashes now that we have the plaintext.
         if ($this->isLegacyHash($stored) || password_needs_rehash($stored, PASSWORD_DEFAULT)) {
-            $this->setPassword((string) $row['user_id'], $password);
+            $this->setPassword((int) $row['user_id'], $password);
         }
 
         $this->session->regenerate(); // prevent session fixation
         $this->csrf->rotate();
-        $this->session->set('auth.uid', (string) $row['user_id']);
+        $this->session->set('auth.uid', (int) $row['user_id']);
         $this->session->set('auth.seen', time());
         $this->loaded = false;
         $this->user = null;
@@ -123,7 +125,7 @@ final class Auth
     }
 
     /** Check a password for an existing user (used by "change password"). */
-    public function verifyPassword(string $userId, string $password): bool
+    public function verifyPassword(int $userId, string $password): bool
     {
         $stored = $this->db->value('SELECT password FROM users WHERE user_id = ?', [$userId]);
         return is_string($stored) && $this->checkHash($stored, $password);
@@ -134,7 +136,7 @@ final class Auth
      * untouched) if the column is too narrow to hold it, i.e. migration
      * 001_widen_password_column.sql has not been applied.
      */
-    public function setPassword(string $userId, string $password): bool
+    public function setPassword(int $userId, string $password): bool
     {
         $hash = password_hash($password, PASSWORD_DEFAULT);
         $pdo = $this->db->pdo();

@@ -114,7 +114,7 @@ final class AssetsModule extends Module
                     d.abbr AS dept_abbr, d.name AS dept_name,
                     b.abbr AS building_abbr, b.name AS building_name,
                     p.abbr AS purchaser_abbr, p.name AS purchaser_name,
-                    u.firstname AS creator_first, u.lastname AS creator_last
+                    u.firstname AS creator_first, u.lastname AS creator_last, u.username AS creator_username
                FROM assets a
                LEFT JOIN asset_types t ON t.type_id = a.type_id
                LEFT JOIN departments d ON d.department_id = a.department_id
@@ -131,7 +131,7 @@ final class AssetsModule extends Module
 
         $transfers = $db->all(
             'SELECT tr.transfer_date, tr.department_from, tr.department_to, tr.location_from, tr.location_to,
-                    tr.reason, tr.user_id, u.firstname, u.lastname
+                    tr.reason, tr.user_id, u.firstname, u.lastname, u.username
                FROM transfers tr
                LEFT JOIN users u ON u.user_id = tr.user_id
               WHERE tr.asset_id = ?
@@ -432,7 +432,7 @@ final class AssetsModule extends Module
         $db = $this->app->db;
         $pdo = $db->pdo();
         $now = date('Y-m-d H:i:s');
-        $uid = (string) $this->app->auth->user()['user_id'];
+        $uid = (int) $this->app->auth->user()['user_id'];
 
         // Keep the stored timestamp untouched if the date itself wasn't changed.
         $purchase = substr((string) $old['purchase_date'], 0, 10) === $f['purchase_date']
@@ -477,7 +477,7 @@ final class AssetsModule extends Module
 
     /** Insert one row into the transfers history, in the same "BUILDINGROOM" format as the legacy data. */
     private function logTransfer(
-        int $assetId, string $userId, string $when, string $reason, array $lookups,
+        int $assetId, int $userId, string $when, string $reason, array $lookups,
         int $fromDept, int $fromBuilding, string $fromRoom, int $toDept, int $toBuilding, string $toRoom
     ): void {
         $this->insertTransfer(
@@ -489,7 +489,7 @@ final class AssetsModule extends Module
     }
 
     private function insertTransfer(
-        int $assetId, string $userId, string $when, string $reason,
+        int $assetId, int $userId, string $when, string $reason,
         string $deptFrom, string $deptTo, string $locationFrom, string $locationTo
     ): void {
         $this->app->db->execute(
@@ -504,7 +504,7 @@ final class AssetsModule extends Module
      * retiring is a transfer "<department> -> RETIRE" whose reason is the disposal method, and
      * restoring is "RETIRE -> <department>". (The asset itself stays in its department while retired.)
      */
-    private function logRetirement(array $asset, string $userId, string $when, string $method): void
+    private function logRetirement(array $asset, int $userId, string $when, string $method): void
     {
         $this->insertTransfer(
             (int) $asset['asset_id'], $userId, $when, $method,
@@ -513,7 +513,7 @@ final class AssetsModule extends Module
         );
     }
 
-    private function logRestoration(array $asset, string $userId, string $when, string $toDept): void
+    private function logRestoration(array $asset, int $userId, string $when, string $toDept): void
     {
         $this->insertTransfer(
             (int) $asset['asset_id'], $userId, $when, 'Restored',
@@ -650,7 +650,7 @@ final class AssetsModule extends Module
     {
         $db = $this->app->db;
         $now = date('Y-m-d H:i:s');
-        $uid = (string) $this->app->auth->user()['user_id'];
+        $uid = (int) $this->app->auth->user()['user_id'];
         $who = $this->userName($uid);
         $line = '[Retired ' . $f['retire_date'] . ' by ' . $who . ': ' . $f['disposal_method']
             . ($f['retired_notes'] !== '' ? ' - ' . $f['retired_notes'] : '') . ']';
@@ -676,7 +676,7 @@ final class AssetsModule extends Module
     {
         $db = $this->app->db;
         $now = date('Y-m-d H:i:s');
-        $uid = (string) $this->app->auth->user()['user_id'];
+        $uid = (int) $this->app->auth->user()['user_id'];
         $changed = 0;
         foreach ($targets as $t) {
             $dept = $f['department_id'] ?: (int) $t['department_id'];
@@ -878,7 +878,7 @@ final class AssetsModule extends Module
             if ($n > 0) {
                 // History lives in the transfers table: RETIRE -> <department>.
                 $a['building_abbr'] = $lookups['building_abbr'][(int) $a['building_id']] ?? '';
-                $this->logRestoration($a, (string) $user['user_id'], $now, (string) ($lookups['dept_abbr'][$deptId] ?? ''));
+                $this->logRestoration($a, (int) $user['user_id'], $now, (string) ($lookups['dept_abbr'][$deptId] ?? ''));
             }
             $pdo->commit();
         } catch (\Throwable $e) {
@@ -944,14 +944,17 @@ final class AssetsModule extends Module
         return (bool) preg_match('/[\x{10000}-\x{10FFFF}]/u', implode('', $texts));
     }
 
-    /** "First Last" for a user_id, falling back to the id itself; '' for none. */
+    /** "First Last" for a user_id (or their username); '' when nobody is recorded; "Missing user" if the row is gone. */
     private function userName(mixed $userId): string
     {
         if ($userId === null || $userId === '') {
             return '';
         }
-        $u = $this->app->db->one('SELECT firstname, lastname FROM users WHERE user_id = ?', [$userId]);
-        return trim(($u['firstname'] ?? '') . ' ' . ($u['lastname'] ?? '')) ?: (string) $userId;
+        $u = $this->app->db->one('SELECT firstname, lastname, username FROM users WHERE user_id = ?', [(int) $userId]);
+        if ($u === null) {
+            return 'Missing user';
+        }
+        return trim($u['firstname'] . ' ' . $u['lastname']) ?: (string) $u['username'];
     }
 
     /** Editing needs the schema changes in REQUIRED_MIGRATIONS. */

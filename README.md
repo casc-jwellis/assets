@@ -23,7 +23,8 @@ Everything is done in the browser:
 Once setup is done and every migration is applied, an administrator can open **Import** in the sidebar
 (`/import`) and upload a `.sql` data dump (phpMyAdmin / mysqldump `INSERT` statements) from the old application.
 The file is parsed, never executed; you review every automatic fix and warning before anything is written, then
-the data tables are replaced in one transaction (your own account is kept). Large dumps need
+the data tables are replaced in one transaction (your own account is kept). The old text user IDs are replaced by new
+numbers and every reference is translated. Large dumps need
 `upload_max_filesize` and `post_max_size` raised in php.ini and, behind nginx, `client_max_body_size`
 (nginx's default is only 1 MB). After the cutover, delete the `modules/Import` folder to remove the tool.
 
@@ -34,6 +35,13 @@ To change the schema, add the next numbered file (e.g. `002_add_something.sql`) 
 MySQL cannot roll back DDL, so write migrations to be safe to re-run. `001_widen_password_column.sql` widens
 `users.password` (it is `varchar(40)`, too small for `password_hash()`); until it is applied, existing
 MD5/SHA-1 passwords still work but are not upgraded and the change-password form cannot save.
+
+Migrations `009`–`013` turn `users.user_id` from text into an auto-incrementing integer and re-point
+`permissions`, `assets` (added by / changed by / retired by) and `transfers` at the new numbers. The old text IDs
+are not kept. Anyone referenced who no longer exists (or had a blank ID) is attached to a disabled
+**Missing user** placeholder so history stays readable. **Back up the database before applying them**: MySQL cannot
+roll back schema changes, so a failure part-way means restoring the backup. Sessions from before the change are
+simply treated as signed out.
 
 For local development: `php -S localhost:8000 -t public public/index.php`
 

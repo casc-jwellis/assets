@@ -51,20 +51,9 @@ $never = $user === null || $user['lastlogin'] === null || str_starts_with((strin
 
     <div class="card form-card wide">
         <h2>Account</h2>
-        <div class="field-row even">
-            <div class="field">
-                <label for="user_id">User ID</label>
-                <?php if ($isNew): ?>
-                    <input type="text" id="user_id" name="user_id" value="<?= e($f['user_id']) ?>" maxlength="16" required>
-                    <small class="muted">Up to 16 characters. Cannot be changed later.</small>
-                <?php else: ?>
-                    <input type="text" id="user_id" value="<?= e($f['user_id']) ?>" disabled>
-                <?php endif; ?>
-            </div>
-            <div class="field">
-                <label for="username">Username (used to sign in)</label>
-                <input type="text" id="username" name="username" value="<?= e($f['username']) ?>" maxlength="64" required>
-            </div>
+        <div class="field">
+            <label for="username">Username (used to sign in)</label>
+            <input type="text" id="username" name="username" value="<?= e($f['username']) ?>" maxlength="64" required>
         </div>
         <div class="field-row even">
             <div class="field">

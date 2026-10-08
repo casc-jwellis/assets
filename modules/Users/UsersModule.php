@@ -15,8 +15,11 @@ use App\Core\Router;
 final class UsersModule extends Module
 {
     private const PER_PAGE = 25;
-    private const ID = '[A-Za-z0-9._@-]+';
+    private const ID = '\d+';
     private const MIN_PASSWORD = 10;
+
+    /** Username of the disabled stand-in for people who no longer exist (created by migration 009). */
+    public const PLACEHOLDER = 'missing-user';
 
     public function routes(Router $router): void
     {
@@ -80,9 +83,9 @@ final class UsersModule extends Module
         $params = [];
         if ($search !== '') {
             $like = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $search) . '%';
-            $where = "(u.user_id LIKE ? ESCAPE '!' OR u.username LIKE ? ESCAPE '!' OR u.firstname LIKE ? ESCAPE '!'
+            $where = "(u.username LIKE ? ESCAPE '!' OR u.firstname LIKE ? ESCAPE '!'
                        OR u.lastname LIKE ? ESCAPE '!' OR u.email LIKE ? ESCAPE '!')";
-            $params = array_fill(0, 5, $like);
+            $params = array_fill(0, 4, $like);
         }
         if ($status === 'active') {
             $where .= ' AND u.disabled = 0';
@@ -125,30 +128,31 @@ final class UsersModule extends Module
 
     public function disable(Request $req, array $params): never
     {
-        $this->setDisabled($req, $params['uid'], true);
+        $this->setDisabled($req, (int) $params['uid'], true);
     }
 
     public function enable(Request $req, array $params): never
     {
-        $this->setDisabled($req, $params['uid'], false);
+        $this->setDisabled($req, (int) $params['uid'], false);
     }
 
     /** Revoke or restore a person's ability to sign in. Reversible, so no confirmation page. */
-    private function setDisabled(Request $req, string $userId, bool $disable): never
+    private function setDisabled(Request $req, int $userId, bool $disable): never
     {
         $this->rememberList($req);
         $db = $this->app->db;
         $auth = $this->app->auth;
-        $back = '/users/' . rawurlencode($userId) . $this->listQs;
+        $back = '/users/' . $userId . $this->listQs;
 
         if (!$auth->supportsDisabling()) {
             $this->app->session->flash('danger', 'Disabling users needs a database update. Apply the pending migrations first.');
             $this->redirect($back);
         }
         $user = $this->find($userId);
+        $this->refusePlaceholder($user);
 
         if ($disable) {
-            if ($user['user_id'] === $auth->user()['user_id']) {
+            if ((int) $user['user_id'] === (int) $auth->user()['user_id']) {
                 $this->app->session->flash('danger', 'You cannot disable your own account.');
                 $this->redirect($back);
             }
@@ -174,7 +178,7 @@ final class UsersModule extends Module
     {
         $this->rememberList($req);
         return $this->form(null, [
-            'user_id' => '', 'username' => '', 'firstname' => '', 'lastname' => '', 'email' => '',
+            'user_id' => null, 'username' => '', 'firstname' => '', 'lastname' => '', 'email' => '',
             'department_id' => 0, 'timezone' => 'UTC', 'admin' => false, 'disabled' => false,
         ], [], []);
     }
@@ -182,13 +186,14 @@ final class UsersModule extends Module
     public function showEdit(Request $req, array $params): string
     {
         $this->rememberList($req);
-        $user = $this->find($params['uid']);
+        $user = $this->find((int) $params['uid']);
+        $this->refusePlaceholder($user);
         $perms = [];
         foreach ($this->app->db->all('SELECT department_id, permission FROM permissions WHERE user_id = ?', [$user['user_id']]) as $p) {
             $perms[(int) $p['department_id']] = (string) $p['permission'];
         }
         return $this->form($user, [
-            'user_id'       => $user['user_id'],
+            'user_id'       => (int) $user['user_id'],
             'username'      => $user['username'],
             'firstname'     => $user['firstname'],
             'lastname'      => $user['lastname'],
@@ -209,7 +214,9 @@ final class UsersModule extends Module
     public function update(Request $req, array $params): string
     {
         $this->rememberList($req);
-        return $this->save($req, $this->find($params['uid']));
+        $user = $this->find((int) $params['uid']);
+        $this->refusePlaceholder($user);
+        return $this->save($req, $user);
     }
 
     // ---- saving ----
@@ -219,11 +226,11 @@ final class UsersModule extends Module
         $db = $this->app->db;
         $auth = $this->app->auth;
         $isNew = $existing === null;
-        $isSelf = !$isNew && $existing['user_id'] === $auth->user()['user_id'];
+        $isSelf = !$isNew && (int) $existing['user_id'] === (int) $auth->user()['user_id'];
         $canDisable = $auth->supportsDisabling();
 
         $f = [
-            'user_id'       => $isNew ? trim((string) $req->post('user_id')) : (string) $existing['user_id'],
+            'user_id'       => $isNew ? null : (int) $existing['user_id'], // assigned by the database for new users
             'username'      => trim((string) $req->post('username')),
             'firstname'     => trim((string) $req->post('firstname')),
             'lastname'      => trim((string) $req->post('lastname')),
@@ -252,16 +259,11 @@ final class UsersModule extends Module
 
         // ---- validation ----
         $errors = [];
-        if ($isNew) {
-            if (!preg_match('/^' . self::ID . '$/', $f['user_id']) || strlen($f['user_id']) > 16 || strtolower($f['user_id']) === 'new') {
-                $errors[] = 'User ID: 1–16 letters, numbers or . _ @ - (and not "new"). It cannot be changed later.';
-            } elseif ($db->one('SELECT 1 FROM users WHERE user_id = ?', [$f['user_id']]) !== null) {
-                $errors[] = 'That user ID is already in use.';
-            }
-        }
         if ($f['username'] === '' || strlen($f['username']) > 64 || preg_match('/[\x00-\x1f\x7f]/', $f['username'])) {
             $errors[] = 'Enter a username (up to 64 characters, no control characters).';
-        } elseif ($db->one('SELECT 1 FROM users WHERE username = ? AND user_id <> ?', [$f['username'], $f['user_id']]) !== null) {
+        } elseif (strtolower($f['username']) === self::PLACEHOLDER) {
+            $errors[] = 'That username is reserved.';
+        } elseif ($db->one('SELECT 1 FROM users WHERE username = ? AND user_id <> ?', [$f['username'], (int) $f['user_id']]) !== null) {
             $errors[] = 'That username belongs to another user.';
         }
         if (strlen($f['firstname']) > 32 || strlen($f['lastname']) > 32) {
@@ -314,9 +316,10 @@ final class UsersModule extends Module
     /**
      * Write the user and their permission rows in one transaction.
      *
+     * @return int the user's id (newly assigned for a new user)
      * @throws \RuntimeException if the password hash could not be stored intact
      */
-    private function persist(bool $isNew, array $f, string $password, array $perms): void
+    private function persist(bool $isNew, array $f, string $password, array $perms): int
     {
         $db = $this->app->db;
         $pdo = $db->pdo();
@@ -324,14 +327,15 @@ final class UsersModule extends Module
         $pdo->beginTransaction();
         try {
             if ($isNew) {
-                // lastlogin is NOT NULL: the epoch means "never signed in". A hash is always supplied,
-                // so the column's weak legacy default password can never apply.
+                // user_id is auto-incremented. lastlogin is NOT NULL: the epoch means "never signed in".
+                // A hash is always supplied, so the column's weak legacy default password can never apply.
                 $db->execute(
-                    'INSERT INTO users (user_id, username, password, firstname, lastname, email, department_id, admin, timezone, lastlogin)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                    [$f['user_id'], $f['username'], $hash, $f['firstname'], $f['lastname'], $f['email'],
+                    'INSERT INTO users (username, password, firstname, lastname, email, department_id, admin, timezone, lastlogin)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [$f['username'], $hash, $f['firstname'], $f['lastname'], $f['email'],
                      $f['department_id'], (int) $f['admin'], $f['timezone'], '1970-01-01 00:00:00']
                 );
+                $f['user_id'] = (int) $pdo->lastInsertId();
             } else {
                 $db->execute(
                     'UPDATE users SET username = ?, firstname = ?, lastname = ?, email = ?, department_id = ?, admin = ?, timezone = ?
@@ -352,6 +356,7 @@ final class UsersModule extends Module
                 $db->execute('INSERT INTO permissions (user_id, department_id, permission) VALUES (?, ?, ?)', [$f['user_id'], $deptId, $level]);
             }
             $pdo->commit();
+            return (int) $f['user_id'];
         } catch (\Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
@@ -363,7 +368,7 @@ final class UsersModule extends Module
     // ---- helpers ----
 
     /** @return array<string,mixed> the user row (without password); 404 if there is none */
-    private function find(string $userId): array
+    private function find(int $userId): array
     {
         $user = $this->app->db->one('SELECT * FROM users WHERE user_id = ?', [$userId]);
         if ($user === null) {
@@ -371,6 +376,15 @@ final class UsersModule extends Module
         }
         unset($user['password']);
         return $user;
+    }
+
+    /** The "Missing user" stand-in is system-managed: it cannot be edited, enabled or used to sign in. */
+    private function refusePlaceholder(array $user): void
+    {
+        if ($user['username'] === self::PLACEHOLDER) {
+            $this->app->session->flash('info', '"Missing user" is a placeholder for people who no longer exist, so it cannot be edited.');
+            $this->redirect('/users' . $this->listQs);
+        }
     }
 
     /** @return list<array{department_id:int|string, abbr:string, name:string}> */
@@ -381,7 +395,7 @@ final class UsersModule extends Module
 
     private function form(?array $existing, array $f, array $perms, array $errors): string
     {
-        $self = $existing !== null && $existing['user_id'] === $this->app->auth->user()['user_id'];
+        $self = $existing !== null && (int) $existing['user_id'] === (int) $this->app->auth->user()['user_id'];
         return $this->render('form', [
             'title'       => $existing === null ? 'New user' : 'Edit user',
             'isNew'       => $existing === null,
