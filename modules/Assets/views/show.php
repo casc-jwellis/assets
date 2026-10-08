@@ -1,11 +1,11 @@
 <?php
-/** Expects $a (asset row with joined names), $transfers (list), $depreciation (array|null), $updatedBy (string), $canEdit (bool). */
+/** Expects $a (asset row with joined names), $transfers (list), $depreciation (array|null), $updatedBy (string), $canEdit (bool), $listQs (string). */
 $creator = trim(($a['creator_first'] ?? '') . ' ' . ($a['creator_last'] ?? ''));
 $location = trim(($a['building_name'] ?? '') . ($a['room'] !== '' ? ', room ' . $a['room'] : ''), ', ');
 ?>
 <div class="page-head">
     <div>
-        <a class="back-link" href="<?= e(url('/assets')) ?>">&larr; All assets</a>
+        <a class="back-link" href="<?= e(url('/assets') . $listQs) ?>">&larr; <?= $listQs !== '' ? 'Back to results' : 'All assets' ?></a>
         <h1><?= e($a['asset_number']) ?></h1>
         <p class="muted"><?= e($a['description']) ?></p>
     </div>
@@ -17,11 +17,11 @@ $location = trim(($a['building_name'] ?? '') . ($a['room'] !== '' ? ', room ' . 
             <span class="badge badge-ok">Verified <?= e(fmt_date($a['verified_date'])) ?></span>
         <?php endif; ?>
         <?php if ($canEdit): ?>
-            <form method="post" action="<?= e(url('/assets/' . (int) $a['asset_id'] . '/verify')) ?>" class="inline-form">
+            <form method="post" action="<?= e(url('/assets/' . (int) $a['asset_id'] . '/verify') . $listQs) ?>" class="inline-form">
                 <?= csrf_field() ?>
                 <button type="submit" class="btn" title="Record that this asset was physically checked today">Mark verified</button>
             </form>
-            <a class="btn btn-primary" href="<?= e(url('/assets/' . (int) $a['asset_id'] . '/edit')) ?>">Edit</a>
+            <a class="btn btn-primary" href="<?= e(url('/assets/' . (int) $a['asset_id'] . '/edit') . $listQs) ?>">Edit</a>
         <?php endif; ?>
     </div>
 </div>

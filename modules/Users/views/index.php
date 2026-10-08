@@ -13,7 +13,7 @@ $never = static fn($v): bool => $v === null || $v === '' || str_starts_with((str
             <?= icon('search', 16) ?>
             <input type="search" name="q" value="<?= e($search) ?>" placeholder="Name, username, ID or email" aria-label="Search users" maxlength="64" data-submit-on-clear>
         </form>
-        <a class="btn btn-primary" href="<?= e(url('/users/new')) ?>">Add user</a>
+        <a class="btn btn-primary" href="<?= e(url('/users/new') . $listQs) ?>">Add user</a>
     </div>
 </div>
 
@@ -40,7 +40,7 @@ $never = static fn($v): bool => $v === null || $v === '' || str_starts_with((str
                 <?php foreach ($rows as $r): ?>
                     <?php $name = trim($r['lastname'] . ($r['lastname'] !== '' && $r['firstname'] !== '' ? ', ' : '') . $r['firstname']); ?>
                     <tr>
-                        <td><a href="<?= e(url('/users/' . rawurlencode((string) $r['user_id']))) ?>"><?= e($name !== '' ? $name : $r['username']) ?></a></td>
+                        <td><a href="<?= e(url('/users/' . rawurlencode((string) $r['user_id'])) . $listQs) ?>"><?= e($name !== '' ? $name : $r['username']) ?></a></td>
                         <td><?= e($r['username']) ?></td>
                         <td class="nowrap"><?= e($r['user_id']) ?></td>
                         <td><?= e($r['email']) ?></td>

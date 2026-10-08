@@ -1,5 +1,5 @@
 <?php
-/** Expects $rows, $search, $page, $pages, $total, $canAdd. */
+/** Expects $rows, $search, $page, $pages, $total, $canAdd, $listQs (current search/page, appended to links). */
 $pageUrl = static fn(int $p): string => url('/assets') . '?' . http_build_query(array_filter(['q' => $search, 'page' => $p > 1 ? $p : null]));
 ?>
 <div class="page-head">
@@ -13,7 +13,7 @@ $pageUrl = static fn(int $p): string => url('/assets') . '?' . http_build_query(
             <input type="search" name="q" value="<?= e($search) ?>" placeholder="Asset #, serial or description" aria-label="Search assets" maxlength="64" data-submit-on-clear>
         </form>
         <?php if ($canAdd): ?>
-            <a class="btn btn-primary" href="<?= e(url('/assets/new')) ?>">Add asset</a>
+            <a class="btn btn-primary" href="<?= e(url('/assets/new') . $listQs) ?>">Add asset</a>
         <?php endif; ?>
     </div>
 </div>
@@ -33,7 +33,7 @@ $pageUrl = static fn(int $p): string => url('/assets') . '?' . http_build_query(
                 <tbody>
                 <?php foreach ($rows as $r): ?>
                     <tr>
-                        <td class="nowrap"><a href="<?= e(url('/assets/' . (int) $r['asset_id'])) ?>"><?= e($r['asset_number']) ?></a></td>
+                        <td class="nowrap"><a href="<?= e(url('/assets/' . (int) $r['asset_id']) . $listQs) ?>"><?= e($r['asset_number']) ?></a></td>
                         <td><?= e($r['description']) ?></td>
                         <td><?= e($r['type_name']) ?></td>
                         <td class="nowrap"><?= e($r['serial_number']) ?></td>

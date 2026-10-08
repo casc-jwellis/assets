@@ -47,6 +47,7 @@ final class AssetsModule extends Module
     /** Read-only detail page: every column, plus the asset's transfer history. */
     public function show(Request $req, array $params): string
     {
+        $this->rememberList($req);
         $db = $this->app->db;
         [$scope, $scopeParams] = $this->app->auth->departmentScope('a.department_id');
 
@@ -133,6 +134,7 @@ final class AssetsModule extends Module
         $pages = max(1, (int) ceil($total / self::PER_PAGE));
         $page = min($page, $pages);
         $offset = ($page - 1) * self::PER_PAGE; // ints only: safe to inline
+        $this->listQs = $this->listState($search, $page);
 
         $rows = $db->all(
             "SELECT a.asset_id, a.asset_number, a.serial_number, a.description, a.cost, a.room, a.verified_date,
@@ -162,6 +164,7 @@ final class AssetsModule extends Module
 
     public function showNew(Request $req): string
     {
+        $this->rememberList($req);
         $this->requireWriter();
         $writable = $this->app->auth->writableDepartmentIds();
         $home = (int) ($this->app->auth->user()['department_id'] ?? 0);
@@ -176,12 +179,14 @@ final class AssetsModule extends Module
 
     public function create(Request $req): string
     {
+        $this->rememberList($req);
         $this->requireWriter();
         return $this->save($req, null);
     }
 
     public function showEdit(Request $req, array $params): string
     {
+        $this->rememberList($req);
         $this->requireEditing();
         $a = $this->findEditable((int) $params['id']);
         return $this->form($a, [
@@ -203,6 +208,7 @@ final class AssetsModule extends Module
 
     public function update(Request $req, array $params): string
     {
+        $this->rememberList($req);
         $this->requireEditing();
         return $this->save($req, $this->findEditable((int) $params['id']));
     }
@@ -210,6 +216,7 @@ final class AssetsModule extends Module
     /** One click "I physically checked this asset today". */
     public function verify(Request $req, array $params): never
     {
+        $this->rememberList($req);
         $this->requireEditing();
         $a = $this->findEditable((int) $params['id']);
         $now = date('Y-m-d H:i:s');
@@ -220,7 +227,7 @@ final class AssetsModule extends Module
             [$now, $now, $this->app->auth->user()['user_id'], $a['asset_id']]
         );
         $this->app->session->flash('success', 'Asset ' . $a['asset_number'] . ' marked as verified.');
-        $this->redirect('/assets/' . (int) $a['asset_id']);
+        $this->redirect('/assets/' . (int) $a['asset_id'] . $this->listQs);
     }
 
     private function save(Request $req, ?array $existing): string
@@ -269,7 +276,7 @@ final class AssetsModule extends Module
                     ], (int) ($cur['version'] ?? $version), true);
                 }
                 $this->app->session->flash('success', 'Asset ' . $f['asset_number'] . ($isNew ? ' created.' : ' saved.'));
-                $this->redirect('/assets/' . $id);
+                $this->redirect('/assets/' . $id . $this->listQs);
             } catch (\PDOException $e) {
                 if ((string) $e->getCode() === '23000') {
                     $errors[] = 'Another asset already uses that asset number.';

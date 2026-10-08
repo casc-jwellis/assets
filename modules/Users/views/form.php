@@ -3,12 +3,13 @@
  * Create/edit form. Expects $isNew, $isSelf, $user (row|null), $f (field values), $perms (dept_id => 'r'|'rw'),
  * $errors, $departments, $timezones, $canDisable, $minPassword.
  */
-$action = $isNew ? url('/users/new') : url('/users/' . rawurlencode((string) $f['user_id']));
+$action = ($isNew ? url('/users/new') : url('/users/' . rawurlencode((string) $f['user_id']))) . $listQs;
+$back = url('/users') . $listQs;
 $never = $user === null || $user['lastlogin'] === null || str_starts_with((string) $user['lastlogin'], '0000') || str_starts_with((string) $user['lastlogin'], '1970-01-01');
 ?>
 <div class="page-head">
     <div>
-        <a class="back-link" href="<?= e(url('/users')) ?>">&larr; All users</a>
+        <a class="back-link" href="<?= e($back) ?>">&larr; <?= $listQs !== '' ? 'Back to results' : 'All users' ?></a>
         <h1><?= $isNew ? 'New user' : e($f['username']) ?></h1>
         <?php if (!$isNew): ?>
             <p class="muted">User ID <?= e($f['user_id']) ?> · Last sign-in <?= $never ? 'never' : e(fmt_date($user['lastlogin'])) ?></p>
@@ -129,6 +130,6 @@ $never = $user === null || $user['lastlogin'] === null || str_starts_with((strin
 
     <div class="form-actions">
         <button type="submit" class="btn btn-primary"><?= $isNew ? 'Create user' : 'Save changes' ?></button>
-        <a class="btn" href="<?= e(url('/users')) ?>">Cancel</a>
+        <a class="btn" href="<?= e($back) ?>">Cancel</a>
     </div>
 </form>

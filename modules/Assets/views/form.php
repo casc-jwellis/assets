@@ -3,8 +3,8 @@
  * Add/edit form. Expects $isNew, $asset (row|null), $f (values), $errors, $version, $conflict,
  * $canRenumber, $types, $buildings, $departments, $writableDepartments.
  */
-$action = $isNew ? url('/assets/new') : url('/assets/' . (int) $asset['asset_id'] . '/edit');
-$back = $isNew ? url('/assets') : url('/assets/' . (int) $asset['asset_id']);
+$action = ($isNew ? url('/assets/new') : url('/assets/' . (int) $asset['asset_id'] . '/edit')) . $listQs;
+$back = ($isNew ? url('/assets') : url('/assets/' . (int) $asset['asset_id'])) . $listQs;
 ?>
 <div class="page-head">
     <div>

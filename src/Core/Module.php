@@ -34,11 +34,34 @@ abstract class Module
         return [];
     }
 
+    /**
+     * "?q=foo&page=2" (or ""): the list view the user came from. Appended to links from list
+     * to detail/edit pages (and back) so "back" returns to the same search and page.
+     */
+    protected string $listQs = '';
+
     /** Render modules/<Name>/views/<view>.php inside the given layout ('app', 'auth' or null). */
     protected function render(string $view, array $data = [], ?string $layout = 'app'): string
     {
         $dir = dirname((new \ReflectionClass($this))->getFileName());
-        return $this->app->view->render($dir . '/views/' . $view . '.php', $data, $layout);
+        // Views get $listQs automatically.
+        return $this->app->view->render($dir . '/views/' . $view . '.php', $data + ['listQs' => $this->listQs], $layout);
+    }
+
+    /**
+     * Build the list state from validated pieces only (never echo the raw query string), so the
+     * link can only ever carry a text search and a page number back to the list.
+     */
+    protected function listState(string $search, int $page): string
+    {
+        $qs = http_build_query(array_filter(['q' => $search, 'page' => $page > 1 ? $page : null]));
+        return $qs === '' ? '' : '?' . $qs;
+    }
+
+    /** On detail/edit pages: pick the list state up from the request's ?q= and ?page=. */
+    protected function rememberList(Request $req): void
+    {
+        $this->listQs = $this->listState(mb_substr(trim((string) $req->query('q')), 0, 64), max(1, (int) $req->query('page', '1')));
     }
 
     protected function redirect(string $path): never

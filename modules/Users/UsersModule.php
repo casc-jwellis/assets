@@ -59,6 +59,7 @@ final class UsersModule extends Module
         $pages = max(1, (int) ceil($total / self::PER_PAGE));
         $page = min($page, $pages);
         $offset = ($page - 1) * self::PER_PAGE;
+        $this->listQs = $this->listState($search, $page);
 
         $cols = 'u.user_id, u.username, u.firstname, u.lastname, u.email, u.admin, u.lastlogin, d.abbr AS dept'
             . ($this->app->auth->supportsDisabling() ? ', u.disabled' : '');
@@ -88,6 +89,7 @@ final class UsersModule extends Module
 
     public function showNew(Request $req): string
     {
+        $this->rememberList($req);
         return $this->form(null, [
             'user_id' => '', 'username' => '', 'firstname' => '', 'lastname' => '', 'email' => '',
             'department_id' => 0, 'timezone' => 'UTC', 'admin' => false, 'disabled' => false,
@@ -96,6 +98,7 @@ final class UsersModule extends Module
 
     public function showEdit(Request $req, array $params): string
     {
+        $this->rememberList($req);
         $user = $this->find($params['uid']);
         $perms = [];
         foreach ($this->app->db->all('SELECT department_id, permission FROM permissions WHERE user_id = ?', [$user['user_id']]) as $p) {
@@ -116,11 +119,13 @@ final class UsersModule extends Module
 
     public function create(Request $req): string
     {
+        $this->rememberList($req);
         return $this->save($req, null);
     }
 
     public function update(Request $req, array $params): string
     {
+        $this->rememberList($req);
         return $this->save($req, $this->find($params['uid']));
     }
 
@@ -210,7 +215,7 @@ final class UsersModule extends Module
             try {
                 $this->persist($isNew, $f, $password, $perms, $canDisable);
                 $this->app->session->flash('success', 'User "' . $f['username'] . '" ' . ($isNew ? 'created.' : 'saved.'));
-                $this->redirect('/users');
+                $this->redirect('/users' . $this->listQs);
             } catch (\RuntimeException $e) {
                 $errors[] = $e->getMessage();
             } catch (\PDOException $e) {
