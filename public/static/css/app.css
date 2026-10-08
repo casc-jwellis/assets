@@ -338,7 +338,9 @@ input:disabled { opacity: .6; cursor: not-allowed; }
 .badge-accent { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
 .badge-danger { background: var(--danger-bg); color: var(--danger); border-color: transparent; }
 
-.search { position: relative; width: min(100%, 320px); }
+/* A search box is 320px wide but may shrink. It needs a definite width (not a percentage or flex-basis):
+   its wrapper is sized by its contents, so anything relative to the wrapper made neighbours wrap. */
+.search { position: relative; flex: 0 1 auto; width: 320px; min-width: 180px; max-width: 100%; }
 .search .icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
 .search input { padding-left: 34px; }
 
@@ -359,8 +361,15 @@ input:disabled { opacity: .6; cursor: not-allowed; }
 .auth-brand .brand-mark { width: 44px; height: 44px; border-radius: 12px; margin-bottom: 10px; }
 .auth-brand h1 { font-size: 1.35rem; }
 
-.search-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.search-form select { width: auto; }
+.search-form { display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; }
+.search-form select { width: auto; flex: none; }
+@media (max-width: 620px) {
+    /* On phones: the search box gets a full row; the filter and the action button share the next one. */
+    .page-actions { width: 100%; }
+    .search-form { display: contents; }
+    .search-form .search, .page-actions > .search { width: 100%; flex: 1 1 100%; }
+    .search-form select, .page-actions > .btn { flex: 1 1 0; }
+}
 .check-col { width: 36px; padding-right: 0 !important; }
 .check-col input { accent-color: var(--accent); width: 16px; height: 16px; vertical-align: middle; }
 .is-retired td { color: var(--muted); }
