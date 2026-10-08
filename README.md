@@ -28,6 +28,10 @@ numbers and every reference is translated. Large dumps need
 `upload_max_filesize` and `post_max_size` raised in php.ini and, behind nginx, `client_max_body_size`
 (nginx's default is only 1 MB). After the cutover, delete the `modules/Import` folder to remove the tool.
 
+The Import page also has a **Delete tables and Config** button for starting over while testing: it drops every table in
+the database, removes `config/config.php` and signs you out, and you land on the setup wizard to build a fresh database.
+It asks for a tick and the words `DELETE ALL`, and it cannot be undone.
+
 ### Migrations
 
 `migrations/*.sql` are applied once each, in filename order, and recorded in a `schema_migrations` table.

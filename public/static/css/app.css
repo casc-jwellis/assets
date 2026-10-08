@@ -274,6 +274,9 @@ a.stat-link:hover { border-color: var(--accent); color: inherit; text-decoration
 .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
 .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--accent-contrast); }
 .btn-block { width: 100%; padding: 10px 14px; }
+.btn-danger { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger); }
+.btn-danger:hover { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
+.card.danger-card { border-color: var(--danger-border); }
 
 .icon-btn {
     display: inline-grid;

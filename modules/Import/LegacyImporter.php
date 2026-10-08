@@ -515,6 +515,34 @@ final class LegacyImporter
         }
     }
 
+    /**
+     * Drop every table (and view) in the connected database. Not undoable: DDL cannot be rolled back.
+     * The names come from the server itself and are quoted, never taken from a request.
+     *
+     * @return int how many tables were dropped
+     */
+    public function dropAllTables(): int
+    {
+        $objects = $this->db->all(
+            'SELECT TABLE_NAME AS name, TABLE_TYPE AS kind FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()'
+        );
+        $pdo = $this->db->pdo();
+        $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
+        try {
+            foreach ($objects as $o) {
+                $kind = match ($o['kind']) {
+                    'VIEW'     => 'VIEW',
+                    'SEQUENCE' => 'SEQUENCE',
+                    default    => 'TABLE',
+                };
+                $pdo->exec("DROP {$kind} IF EXISTS `" . str_replace('`', '``', (string) $o['name']) . '`');
+            }
+        } finally {
+            $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
+        }
+        return count($objects);
+    }
+
     /** @param list<array<string,mixed>> $rows */
     private function insertRows(string $table, array $rows): void
     {

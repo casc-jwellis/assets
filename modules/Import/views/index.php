@@ -63,4 +63,22 @@ $mb = static fn(int $b): string => $b >= PHP_INT_MAX / 2 ? 'no limit' : number_f
         <button type="submit" class="btn btn-primary"<?= $pending !== [] || !$dirOk ? ' disabled' : '' ?>>Upload and review</button>
     </form>
 </div>
+
+<div class="card form-card danger-card section">
+    <h2>Delete all tables</h2>
+    <p class="muted small">Starts completely over. Every table in the database is dropped (including the users and this account), the saved
+        settings file <code>config/config.php</code> is removed, and you are sent to the setup wizard to build a fresh database. This cannot be undone.</p>
+    <form method="post" action="<?= e(url('/import/reset')) ?>" autocomplete="off">
+        <?= csrf_field() ?>
+        <label class="check">
+            <input type="checkbox" name="ack" value="1" required>
+            <span>I have a database backup and want every table deleted.</span>
+        </label>
+        <div class="field">
+            <label for="reset-phrase">Type <strong>DELETE ALL</strong> to continue.</label>
+            <input type="text" id="reset-phrase" name="phrase" autocomplete="off" required>
+        </div>
+        <button type="submit" class="btn btn-danger">Delete tables and Config</button>
+    </form>
+</div>
 </div>

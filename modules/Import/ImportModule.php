@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Modules\Import;
 
+use App\Core\Config;
 use App\Core\Migrator;
 use App\Core\Module;
 use App\Core\Request;
+use App\Core\Response;
 use App\Core\Router;
 
 /**
@@ -27,6 +29,7 @@ final class ImportModule extends Module
         $router->post('/import/analyze', [$this, 'analyze'], $admin);
         $router->post('/import/run', [$this, 'run'], $admin);
         $router->get('/import/report', [$this, 'report'], $admin);
+        $router->post('/import/reset', [$this, 'reset'], $admin);
     }
 
     public function nav(): array
@@ -147,6 +150,43 @@ final class ImportModule extends Module
         ]);
         $this->app->session->flash('success', 'The data was imported.');
         $this->redirect('/import/report');
+    }
+
+    /**
+     * Start from nothing: drop every table, remove the settings file so the setup wizard can run again,
+     * and sign out (the signed-in account is gone with the tables).
+     */
+    public function reset(Request $req): never
+    {
+        if ($req->post('ack') !== '1') {
+            $this->fail('Tick the box to confirm you have a backup and want every table deleted.');
+        }
+        if (trim((string) $req->post('phrase')) !== 'DELETE ALL') {
+            $this->fail('Type DELETE ALL to confirm that every table should be deleted.');
+        }
+
+        try {
+            $dropped = (new LegacyImporter($this->app->db))->dropAllTables();
+        } catch (\Throwable $e) {
+            error_log('import reset failed: ' . $e->getMessage());
+            $this->fail('Deleting the tables failed part-way, so some may be gone: ' . $e->getMessage());
+        }
+
+        $dir = $this->importDir();
+        foreach ($dir !== null ? (glob($dir . '/*.sql') ?: []) : [] as $f) {
+            @unlink($f);
+        }
+
+        $removed = @unlink(Config::path());
+        $session = $this->app->session;
+        $session->forget('auth.uid');
+        $session->forget('import.token');
+        $session->forget('import.report');
+        $session->regenerate();
+        $session->flash($removed ? 'success' : 'warning', $removed
+            ? "Deleted {$dropped} table" . ($dropped === 1 ? '' : 's') . ' and removed the saved settings. Run setup to build a fresh database.'
+            : "Deleted {$dropped} table" . ($dropped === 1 ? '' : 's') . ', but the web server could not remove config/config.php. Delete that file yourself, then run setup.');
+        Response::redirect('/setup.php');
     }
 
     public function report(Request $req): string
