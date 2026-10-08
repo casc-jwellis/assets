@@ -97,29 +97,6 @@ CREATE TABLE `permissions` (
 -- --------------------------------------------------------
 
 --
--- Table structure for table `tassets`
---
-
-CREATE TABLE `tassets` (
-  `id` int UNSIGNED NOT NULL,
-  `asset_number` varchar(32) NOT NULL,
-  `serial_number` varchar(32) NOT NULL,
-  `department` varchar(32) NOT NULL,
-  `building` varchar(32) NOT NULL,
-  `room` varchar(32) NOT NULL,
-  `purchaser` varchar(32) NOT NULL,
-  `description` varchar(64) NOT NULL,
-  `acq_date` varchar(32) NOT NULL,
-  `cost` decimal(10,2) NOT NULL,
-  `user` varchar(32) NOT NULL,
-  `ram` varchar(32) NOT NULL,
-  `hd` varchar(32) NOT NULL,
-  `pro` varchar(32) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
-
--- --------------------------------------------------------
-
---
 -- Table structure for table `transfers`
 --
 
@@ -191,12 +168,6 @@ ALTER TABLE `permissions`
   ADD PRIMARY KEY (`user_id`,`department_id`);
 
 --
--- Indexes for table `tassets`
---
-ALTER TABLE `tassets`
-  ADD PRIMARY KEY (`id`);
-
---
 -- Indexes for table `transfers`
 --
 ALTER TABLE `transfers`
@@ -236,12 +207,6 @@ ALTER TABLE `buildings`
 --
 ALTER TABLE `departments`
   MODIFY `department_id` int UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `tassets`
---
-ALTER TABLE `tassets`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `transfers`
