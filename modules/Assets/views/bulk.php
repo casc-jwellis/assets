@@ -39,7 +39,7 @@ $back = url('/assets') . $listQs;
     <div class="card form-card wide">
         <h2><?= $isRetire ? 'Retirement details' : 'Move to' ?></h2>
         <?php if ($isRetire): ?>
-            <p class="muted small">Retired assets keep their department and location but are hidden from the default list and can no longer be edited, moved or verified. An administrator can restore them.</p>
+            <p class="muted small">Retired assets keep their department and location but are hidden from the default list and can no longer be edited, moved or verified. An administrator can restore them. A dated line is added to each asset's notes and to its transfer history.</p>
             <div class="field-row even">
                 <div class="field">
                     <label for="retire_date">Retirement date</label>

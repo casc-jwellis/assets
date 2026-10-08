@@ -111,7 +111,7 @@ $location = trim(($a['building_name'] ?? '') . ($a['room'] !== '' ? ', room ' . 
                     <tr>
                         <td class="nowrap"><?= e(fmt_date($t['transfer_date'])) ?></td>
                         <td class="nowrap"><span class="badge"><?= e($t['department_from']) ?></span> <?= e($t['location_from']) ?></td>
-                        <td class="nowrap"><span class="badge"><?= e($t['department_to']) ?></span> <?= e($t['location_to']) ?></td>
+                        <td class="nowrap"><span class="badge<?= $t['department_to'] === 'RETIRE' ? ' badge-warn' : '' ?>"><?= e($t['department_to']) ?></span> <?= e($t['location_to']) ?></td>
                         <td><?= e($t['reason'] ?? '') ?></td>
                         <td><?= e($by !== '' ? $by : $t['user_id']) ?></td>
                     </tr>

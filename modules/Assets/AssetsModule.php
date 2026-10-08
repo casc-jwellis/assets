@@ -28,6 +28,9 @@ final class AssetsModule extends Module
     private const REQUIRED_MIGRATIONS = ['003_widen_transfers_user_id.sql', '005_asset_edit_columns.sql'];
     private const RETIREMENT_MIGRATION = '006_asset_retirement.sql';
 
+    /** Abbreviation of the legacy department that retired assets used to be moved into. */
+    private const RETIRE_DEPT = 'RETIRE';
+
     public const DISPOSAL_METHODS = ['Surplus', 'Recycled', 'Sold', 'Donated', 'Traded in', 'Scrapped', 'Lost', 'Stolen', 'Other'];
 
     private ?bool $ready = null;
@@ -477,14 +480,44 @@ final class AssetsModule extends Module
         int $assetId, string $userId, string $when, string $reason, array $lookups,
         int $fromDept, int $fromBuilding, string $fromRoom, int $toDept, int $toBuilding, string $toRoom
     ): void {
+        $this->insertTransfer(
+            $assetId, $userId, $when, $reason,
+            $lookups['dept_abbr'][$fromDept] ?? '', $lookups['dept_abbr'][$toDept] ?? '',
+            ($lookups['building_abbr'][$fromBuilding] ?? '') . $fromRoom,
+            ($lookups['building_abbr'][$toBuilding] ?? '') . $toRoom
+        );
+    }
+
+    private function insertTransfer(
+        int $assetId, string $userId, string $when, string $reason,
+        string $deptFrom, string $deptTo, string $locationFrom, string $locationTo
+    ): void {
         $this->app->db->execute(
             'INSERT INTO transfers (asset_id, user_id, department_from, department_to, location_from, location_to, reason, transfer_date)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [$assetId, $userId,
-             $lookups['dept_abbr'][$fromDept] ?? '', $lookups['dept_abbr'][$toDept] ?? '',
-             ($lookups['building_abbr'][$fromBuilding] ?? '') . $fromRoom,
-             ($lookups['building_abbr'][$toBuilding] ?? '') . $toRoom,
-             $reason !== '' ? $reason : null, $when]
+            [$assetId, $userId, $deptFrom, $deptTo, $locationFrom, $locationTo, $reason !== '' ? $reason : null, $when]
+        );
+    }
+
+    /**
+     * Retirement and restoration are recorded in the transfers history the way the legacy data did:
+     * retiring is a transfer "<department> -> RETIRE" whose reason is the disposal method, and
+     * restoring is "RETIRE -> <department>". (The asset itself stays in its department while retired.)
+     */
+    private function logRetirement(array $asset, string $userId, string $when, string $method): void
+    {
+        $this->insertTransfer(
+            (int) $asset['asset_id'], $userId, $when, $method,
+            (string) $asset['dept'], self::RETIRE_DEPT,
+            ($asset['building'] ?? '') . $asset['room'], ''
+        );
+    }
+
+    private function logRestoration(array $asset, string $userId, string $when, string $toDept): void
+    {
+        $this->insertTransfer(
+            (int) $asset['asset_id'], $userId, $when, 'Restored',
+            self::RETIRE_DEPT, $toDept, '', ($asset['building_abbr'] ?? '') . $asset['room']
         );
     }
 
@@ -618,15 +651,22 @@ final class AssetsModule extends Module
         $db = $this->app->db;
         $now = date('Y-m-d H:i:s');
         $uid = (string) $this->app->auth->user()['user_id'];
+        $who = $this->userName($uid);
+        $line = '[Retired ' . $f['retire_date'] . ' by ' . $who . ': ' . $f['disposal_method']
+            . ($f['retired_notes'] !== '' ? ' - ' . $f['retired_notes'] : '') . ']';
         $changed = 0;
         foreach ($targets as $t) {
-            $changed += $db->execute(
+            $n = $db->execute(
                 'UPDATE assets SET retired = 1, retired_date = ?, retired_by = ?, disposal_method = ?, retired_notes = ?,
-                        updated_date = ?, updated_by = ?, version = version + 1
+                        notes = ?, updated_date = ?, updated_by = ?, version = version + 1
                   WHERE asset_id = ? AND retired = 0',
                 [$f['retire_date'] . ' 00:00:00', $uid, $f['disposal_method'], $f['retired_notes'] !== '' ? $f['retired_notes'] : null,
-                 $now, $uid, $t['asset_id']]
+                 $this->appendNote((string) ($t['notes'] ?? ''), $line), $now, $uid, $t['asset_id']]
             );
+            if ($n > 0) {
+                $this->logRetirement($t, $uid, $f['retire_date'] . ' 00:00:00', $f['disposal_method']);
+                $changed++;
+            }
         }
         return $changed;
     }
@@ -714,7 +754,7 @@ final class AssetsModule extends Module
         foreach (array_chunk($ids, 400) as $chunk) {
             $in = implode(',', array_fill(0, count($chunk), '?'));
             array_push($rows, ...$db->all(
-                "SELECT a.asset_id, a.asset_number, a.description, a.department_id, a.building_id, a.room, a.retired,
+                "SELECT a.asset_id, a.asset_number, a.description, a.department_id, a.building_id, a.room, a.retired, a.notes,
                         d.abbr AS dept, b.abbr AS building
                    FROM assets a
                    LEFT JOIN departments d ON d.department_id = a.department_id
@@ -777,18 +817,20 @@ final class AssetsModule extends Module
         $a = $this->findRetired((int) $params['id']);
         $departments = $this->restoreDepartments();
 
-        // Default to the department the asset was in before it was retired, if the history says so.
+        // Default to the asset's own department; if it is still parked in the legacy RETIRE department,
+        // fall back to the department its transfer history says it was retired from.
         $default = 0;
-        $abbrs = array_column($departments, 'department_id', 'abbr');
-        $from = $this->app->db->value(
-            "SELECT department_from FROM transfers WHERE asset_id = ? AND department_to = 'RETIRE'
-              ORDER BY transfer_date DESC, transfer_id DESC LIMIT 1",
-            [$a['asset_id']]
-        );
-        if (isset($abbrs[(string) $from])) {
-            $default = (int) $abbrs[(string) $from];
-        } elseif (in_array((int) $a['department_id'], array_map('intval', array_column($departments, 'department_id')), true)) {
+        $ids = array_map('intval', array_column($departments, 'department_id'));
+        if (in_array((int) $a['department_id'], $ids, true)) {
             $default = (int) $a['department_id'];
+        } else {
+            $abbrs = array_column($departments, 'department_id', 'abbr');
+            $from = $this->app->db->value(
+                "SELECT department_from FROM transfers WHERE asset_id = ? AND department_to = 'RETIRE'
+                  ORDER BY transfer_date DESC, transfer_id DESC LIMIT 1",
+                [$a['asset_id']]
+            );
+            $default = isset($abbrs[(string) $from]) ? (int) $abbrs[(string) $from] : 0;
         }
         return $this->restoreForm($a, $default, [], $departments);
     }
@@ -799,10 +841,21 @@ final class AssetsModule extends Module
         $a = $this->findRetired((int) $params['id']);
         $departments = $this->restoreDepartments();
         $deptId = (int) $req->post('department_id');
+        $note = trim((string) $req->post('restore_notes'));
 
+        $errors = [];
         if (!in_array($deptId, array_map('intval', array_column($departments, 'department_id')), true)) {
+            $errors[] = 'Choose the department this asset is returning to.';
+        }
+        if ($this->len($note) > 255 || !$this->oneLine($note)) {
+            $errors[] = 'Notes can be at most 255 characters on a single line.';
+        }
+        if ($this->hasWideChars($note)) {
+            $errors[] = 'Emoji and other special symbols cannot be stored. Please remove them.';
+        }
+        if ($errors !== []) {
             http_response_code(422);
-            return $this->restoreForm($a, 0, ['Choose the department this asset is returning to.'], $departments);
+            return $this->restoreForm($a, $deptId, $errors, $departments, $note);
         }
 
         $db = $this->app->db;
@@ -811,31 +864,21 @@ final class AssetsModule extends Module
         $user = $this->app->auth->user();
         $lookups = $this->lookups();
 
-        // Leave a trail in the notes (there is no separate retirement history table).
-        $line = '[Restored ' . date('Y-m-d') . ' by ' . ($this->userName($user['user_id']) ?: $user['user_id'])
-            . '; had been retired ' . (!empty($a['retired_date']) ? substr((string) $a['retired_date'], 0, 10) : '(date not recorded)')
-            . (!empty($a['disposal_method']) ? ', ' . $a['disposal_method'] : '')
-            . (!empty($a['retired_notes']) && strcasecmp((string) $a['retired_notes'], (string) $a['disposal_method']) !== 0
-                ? ' - ' . $a['retired_notes'] : '') . ']';
-        $notes = trim((string) $a['notes']) === '' ? $line : rtrim((string) $a['notes']) . "\n" . $line;
-        if ($this->len($notes) > 10240) {
-            $notes = (string) $a['notes']; // never fail a restore over a full notes field
-        }
+        // The retirement note (if any) stays in the notes as a dated line, alongside this one.
+        $line = '[Restored ' . date('Y-m-d') . ' by ' . $this->userName($user['user_id']) . ($note !== '' ? ': ' . $note : '') . ']';
 
         $pdo->beginTransaction();
         try {
-            $db->execute(
+            $n = $db->execute(
                 'UPDATE assets SET retired = 0, retired_date = NULL, retired_by = NULL, disposal_method = NULL, retired_notes = NULL,
                         department_id = ?, notes = ?, updated_date = ?, updated_by = ?, version = version + 1
                   WHERE asset_id = ? AND retired = 1',
-                [$deptId, $notes, $now, $user['user_id'], $a['asset_id']]
+                [$deptId, $this->appendNote((string) $a['notes'], $line), $now, $user['user_id'], $a['asset_id']]
             );
-            if ((int) $a['department_id'] !== $deptId) {
-                $this->logTransfer(
-                    (int) $a['asset_id'], (string) $user['user_id'], $now, 'Restored', $lookups,
-                    (int) $a['department_id'], (int) $a['building_id'], (string) $a['room'],
-                    $deptId, (int) $a['building_id'], (string) $a['room']
-                );
+            if ($n > 0) {
+                // History lives in the transfers table: RETIRE -> <department>.
+                $a['building_abbr'] = $lookups['building_abbr'][(int) $a['building_id']] ?? '';
+                $this->logRestoration($a, (string) $user['user_id'], $now, (string) ($lookups['dept_abbr'][$deptId] ?? ''));
             }
             $pdo->commit();
         } catch (\Throwable $e) {
@@ -844,7 +887,7 @@ final class AssetsModule extends Module
             }
             error_log('restore failed: ' . $e->getMessage());
             http_response_code(500);
-            return $this->restoreForm($a, $deptId, ['The asset could not be restored because of a database error.'], $departments);
+            return $this->restoreForm($a, $deptId, ['The asset could not be restored because of a database error.'], $departments, $note);
         }
 
         $this->app->session->flash('success', 'Asset ' . $a['asset_number'] . ' restored.');
@@ -857,7 +900,7 @@ final class AssetsModule extends Module
         return $this->app->db->all("SELECT department_id, abbr, name FROM departments WHERE abbr <> 'RETIRE' ORDER BY abbr");
     }
 
-    private function restoreForm(array $a, int $default, array $errors, array $departments): string
+    private function restoreForm(array $a, int $default, array $errors, array $departments, string $note = ''): string
     {
         $cur = $this->app->db->one('SELECT abbr, name FROM departments WHERE department_id = ?', [$a['department_id']]);
         return $this->render('restore', [
@@ -866,9 +909,21 @@ final class AssetsModule extends Module
             'currentDept' => $cur ? $cur['abbr'] . ' — ' . $cur['name'] : '—',
             'retiredBy'   => $this->userName($a['retired_by'] ?? null),
             'selected'    => $default,
+            'note'        => $note,
             'errors'      => $errors,
             'departments' => $departments,
         ]);
+    }
+
+    /**
+     * Append a dated history line to an asset's notes. If the notes field has no room left, the
+     * notes are returned unchanged: a retire or restore must never fail over a full notes box.
+     * (The structured history is still in the transfers table.)
+     */
+    private function appendNote(string $notes, string $line): string
+    {
+        $new = trim($notes) === '' ? $line : rtrim($notes) . "\n" . $line;
+        return $this->len($new) > 10240 ? $notes : $new;
     }
 
     // --------------------------------------------------------------- helpers
