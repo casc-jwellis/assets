@@ -141,4 +141,27 @@ $never = $user === null || $user['lastlogin'] === null || str_starts_with((strin
         <a class="btn" href="<?= e($back) ?>">Cancel</a>
     </div>
 </form>
+
+<?php if (!$isNew && !$isSelf && !empty($mergeTargets)): ?>
+    <?php parse_str(ltrim((string) $listQs, '?'), $keep); /* carry the list's search/page/status through the picker */ ?>
+    <form method="get" action="<?= e(url('/users/' . rawurlencode((string) $f['user_id']) . '/merge')) ?>" class="card form-card wide section" autocomplete="off">
+        <h2>Merge into another user</h2>
+        <p class="muted small">Use this when the same person has two accounts. Everything this account added, changed, retired or transferred moves to the account you pick, then
+            <strong><?= e($f['username']) ?></strong> is deleted. You will see exactly what moves before anything changes.</p>
+        <?php foreach ($keep as $k => $v): ?>
+            <?php if (is_string($v)): ?><input type="hidden" name="<?= e($k) ?>" value="<?= e($v) ?>"><?php endif; ?>
+        <?php endforeach; ?>
+        <div class="field">
+            <label for="merge-into">Keep this account</label>
+            <select id="merge-into" name="into" required>
+                <option value="">Choose a user…</option>
+                <?php foreach ($mergeTargets as $m): ?>
+                    <?php $mn = trim($m['firstname'] . ' ' . $m['lastname']); ?>
+                    <option value="<?= e($m['user_id']) ?>"><?= e($m['username']) ?><?= $mn !== '' ? ' — ' . e($mn) : '' ?><?= !empty($m['disabled']) ? ' (disabled)' : '' ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <button type="submit" class="btn">Review the merge</button>
+    </form>
+<?php endif; ?>
 </div>

@@ -32,6 +32,8 @@ final class UsersModule extends Module
         $router->post('/users/{uid:' . self::ID . '}', [$this, 'update'], $admin);
         $router->post('/users/{uid:' . self::ID . '}/disable', [$this, 'disable'], $admin);
         $router->post('/users/{uid:' . self::ID . '}/enable', [$this, 'enable'], $admin);
+        $router->get('/users/{uid:' . self::ID . '}/merge', [$this, 'showMerge'], $admin);
+        $router->post('/users/{uid:' . self::ID . '}/merge', [$this, 'merge'], $admin);
     }
 
     public function nav(): array
@@ -170,6 +172,155 @@ final class UsersModule extends Module
             ? $name . ' is disabled and can no longer sign in. Their account, permissions and history are unchanged.'
             : $name . ' is enabled and can sign in again.');
         $this->redirect($back);
+    }
+
+    // ---- merge a duplicate account into another ----
+
+    /** Step 1: show exactly what merging this user into another would move. Nothing is written. */
+    public function showMerge(Request $req, array $params): string
+    {
+        $this->rememberList($req);
+        [$source, $target] = $this->mergePair((int) $params['uid'], (int) $req->query('into'));
+
+        return $this->render('merge', [
+            'title'  => 'Merge users',
+            'source' => $source,
+            'target' => $target,
+            'counts' => $this->mergeCounts((int) $source['user_id']),
+            'perms'  => $this->mergePermissions((int) $source['user_id'], (int) $target['user_id']),
+        ]);
+    }
+
+    /**
+     * Step 2: move everything the duplicate owns to the account being kept, then delete the duplicate.
+     * One transaction: either all of it happens or none of it.
+     */
+    public function merge(Request $req, array $params): never
+    {
+        $this->rememberList($req);
+        $db = $this->app->db;
+        $fromId = (int) $params['uid'];
+        $toId = (int) $req->post('into');
+        [$source, $target] = $this->mergePair($fromId, $toId);
+
+        if ($req->post('ack') !== '1') {
+            $this->app->session->flash('danger', 'Tick the box to confirm you have a backup and want these accounts merged.');
+            $this->redirect('/users/' . $fromId . '/merge' . $this->mergeQs($toId));
+        }
+
+        $counts = $this->mergeCounts($fromId);
+        $pdo = $db->pdo();
+        $pdo->beginTransaction();
+        try {
+            foreach (['assets' => ['user_id', 'updated_by', 'retired_by'], 'transfers' => ['user_id']] as $table => $columns) {
+                foreach ($columns as $column) { // names are constants above, never from the request
+                    $db->execute("UPDATE `{$table}` SET `{$column}` = ? WHERE `{$column}` = ?", [$toId, $fromId]);
+                }
+            }
+            foreach ($this->mergePermissions($fromId, $toId) as $p) {
+                if ($p['tgt'] === null) {
+                    $db->execute('INSERT INTO permissions (user_id, department_id, permission) VALUES (?, ?, ?)', [$toId, $p['department_id'], $p['result']]);
+                } elseif ($p['tgt'] !== $p['result']) {
+                    $db->execute('UPDATE permissions SET permission = ? WHERE user_id = ? AND department_id = ?', [$p['result'], $toId, $p['department_id']]);
+                }
+            }
+            $db->execute('DELETE FROM permissions WHERE user_id = ?', [$fromId]);
+            $db->execute('DELETE FROM users WHERE user_id = ?', [$fromId]);
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            error_log('users merge failed: ' . $e->getMessage());
+            $this->app->session->flash('danger', 'The accounts could not be merged because of a database error. Nothing was changed.');
+            $this->redirect('/users/' . $fromId . $this->listQs);
+        }
+
+        $moved = $counts['added'] + $counts['changed'] + $counts['retired'] + $counts['transfers'];
+        $this->app->session->flash('success', 'Merged "' . $source['username'] . '" into "' . $target['username'] . '": '
+            . number_format($moved) . ' record' . ($moved === 1 ? '' : 's') . ' moved, and "' . $source['username'] . '" was deleted.');
+        $this->redirect('/users/' . $toId . $this->listQs);
+    }
+
+    /**
+     * Validate a merge request. Returns [duplicate, account to keep]; otherwise explains why not and goes back.
+     *
+     * @return array{0: array<string,mixed>, 1: array<string,mixed>}
+     */
+    private function mergePair(int $fromId, int $toId): array
+    {
+        $source = $this->find($fromId);
+        $this->refusePlaceholder($source);
+        $back = '/users/' . $fromId . $this->listQs;
+        $stop = function (string $message) use ($back): never {
+            $this->app->session->flash('danger', $message);
+            $this->redirect($back);
+        };
+
+        $target = $toId > 0 ? $this->app->db->one('SELECT * FROM users WHERE user_id = ?', [$toId]) : null;
+        if ($target === null || $target['username'] === self::PLACEHOLDER) {
+            $stop('Choose the account to keep.');
+        }
+        unset($target['password']);
+        if ($fromId === $toId) {
+            $stop('Choose a different account to keep.');
+        }
+        if ($fromId === (int) $this->app->auth->user()['user_id']) {
+            $stop('You cannot merge the account you are signed in with, because it would be deleted. Sign in as the account you want to keep, then merge the duplicate into it.');
+        }
+        // No last-administrator check is needed: the signed-in administrator is never the duplicate (refused above),
+        // so at least one active administrator always remains.
+        return [$source, $target];
+    }
+
+    /** @return array{added:int, changed:int, retired:int, transfers:int} how much is attached to this user */
+    private function mergeCounts(int $userId): array
+    {
+        $db = $this->app->db;
+        return [
+            'added'     => (int) $db->value('SELECT COUNT(*) FROM assets WHERE user_id = ?', [$userId]),
+            'changed'   => (int) $db->value('SELECT COUNT(*) FROM assets WHERE updated_by = ?', [$userId]),
+            'retired'   => (int) $db->value('SELECT COUNT(*) FROM assets WHERE retired_by = ?', [$userId]),
+            'transfers' => (int) $db->value('SELECT COUNT(*) FROM transfers WHERE user_id = ?', [$userId]),
+        ];
+    }
+
+    /**
+     * Department access after a merge: each department the duplicate had, with the higher of the two levels.
+     *
+     * @return list<array{department_id:int, abbr:string, name:string, src:string, tgt:?string, result:string}>
+     */
+    private function mergePermissions(int $fromId, int $toId): array
+    {
+        $rows = $this->app->db->all(
+            'SELECT ps.department_id, ps.permission AS src, pt.permission AS tgt, d.abbr, d.name
+               FROM permissions ps
+               LEFT JOIN permissions pt ON pt.department_id = ps.department_id AND pt.user_id = ?
+               LEFT JOIN departments d ON d.department_id = ps.department_id
+              WHERE ps.user_id = ?
+              ORDER BY d.abbr',
+            [$toId, $fromId]
+        );
+        $out = [];
+        foreach ($rows as $r) {
+            $src = (string) $r['src'];
+            $tgt = $r['tgt'] === null ? null : (string) $r['tgt'];
+            $out[] = [
+                'department_id' => (int) $r['department_id'],
+                'abbr'          => (string) ($r['abbr'] ?? '?'),
+                'name'          => (string) ($r['name'] ?? '(department no longer exists)'),
+                'src'           => $src,
+                'tgt'           => $tgt,
+                'result'        => $src === 'rw' || $tgt === 'rw' ? 'rw' : 'r',
+            ];
+        }
+        return $out;
+    }
+
+    /** ?into=…, plus the list state, for links back to the review page. */
+    private function mergeQs(int $toId): string
+    {
+        return '?into=' . $toId . ($this->listQs !== '' ? '&' . ltrim($this->listQs, '?') : '');
     }
 
     // ---- create / edit forms ----
@@ -408,6 +559,11 @@ final class UsersModule extends Module
             'timezones'   => \DateTimeZone::listIdentifiers(),
             'canDisable'  => $this->app->auth->supportsDisabling(),
             'minPassword' => self::MIN_PASSWORD,
+            'mergeTargets' => $existing === null ? [] : $this->app->db->all(
+                'SELECT user_id, username, firstname, lastname' . ($this->app->auth->supportsDisabling() ? ', disabled' : '')
+                . ' FROM users WHERE user_id <> ? AND username <> ? ORDER BY username',
+                [$existing['user_id'], self::PLACEHOLDER]
+            ),
         ]);
     }
 }
