@@ -6,6 +6,7 @@
 $action = ($isNew ? url('/assets/new') : url('/assets/' . (int) $asset['asset_id'] . '/edit')) . $listQs;
 $back = ($isNew ? url('/assets') : url('/assets/' . (int) $asset['asset_id'])) . $listQs;
 ?>
+<div class="narrow-col">
 <div class="page-head">
     <div>
         <a class="back-link" href="<?= e($back) ?>">&larr; <?= $isNew ? 'All assets' : 'Back to asset' ?></a>
@@ -139,3 +140,4 @@ $back = ($isNew ? url('/assets') : url('/assets/' . (int) $asset['asset_id'])) .
         <a class="btn" href="<?= e($back) ?>">Cancel</a>
     </div>
 </form>
+</div>

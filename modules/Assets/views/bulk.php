@@ -9,6 +9,7 @@ $n = count($targets);
 $show = array_slice($targets, 0, 50);
 $back = url('/assets') . $listQs;
 ?>
+<div class="narrow-col">
 <div class="page-head">
     <div>
         <a class="back-link" href="<?= e($back) ?>">&larr; <?= $listQs !== '' ? 'Back to results' : 'All assets' ?></a>
@@ -124,3 +125,4 @@ $back = url('/assets') . $listQs;
         <a class="btn" href="<?= e($back) ?>">Cancel</a>
     </div>
 </form>
+</div>

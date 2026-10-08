@@ -312,6 +312,9 @@ input:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color:
 
 .form-card { padding: 20px; max-width: 460px; }
 .form-card.wide { max-width: 760px; }
+/* Form pages: header, alerts and cards share one column, so header buttons line up with the cards. */
+.narrow-col { max-width: 760px; }
+.narrow-col .form-card { max-width: none; }
 .form-card h2 { margin-bottom: 14px; }
 .form-card > p { margin-bottom: 14px; }
 .form-card .card-head { margin: -20px -20px 14px; }

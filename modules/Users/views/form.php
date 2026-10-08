@@ -7,6 +7,7 @@ $action = ($isNew ? url('/users/new') : url('/users/' . rawurlencode((string) $f
 $back = url('/users') . $listQs;
 $never = $user === null || $user['lastlogin'] === null || str_starts_with((string) $user['lastlogin'], '0000') || str_starts_with((string) $user['lastlogin'], '1970-01-01');
 ?>
+<div class="narrow-col">
 <div class="page-head">
     <div>
         <a class="back-link" href="<?= e($back) ?>">&larr; <?= $listQs !== '' ? 'Back to results' : 'All users' ?></a>
@@ -151,3 +152,4 @@ $never = $user === null || $user['lastlogin'] === null || str_starts_with((strin
         <a class="btn" href="<?= e($back) ?>">Cancel</a>
     </div>
 </form>
+</div>

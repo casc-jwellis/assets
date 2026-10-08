@@ -2,6 +2,7 @@
 /** Admin: restore a retired asset. Expects $a, $currentDept, $retiredBy, $selected (dept id), $note, $errors, $departments, $listQs. */
 $back = url('/assets/' . (int) $a['asset_id']) . $listQs;
 ?>
+<div class="narrow-col">
 <div class="page-head">
     <div>
         <a class="back-link" href="<?= e($back) ?>">&larr; Back to asset</a>
@@ -44,3 +45,4 @@ $back = url('/assets/' . (int) $a['asset_id']) . $listQs;
         <a class="btn" href="<?= e($back) ?>">Cancel</a>
     </div>
 </form>
+</div>
