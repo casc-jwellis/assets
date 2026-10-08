@@ -9,7 +9,7 @@ $pageUrl = static fn(int $p): string => url('/assets') . '?' . http_build_query(
     </div>
     <form method="get" action="<?= e(url('/assets')) ?>" class="search" role="search">
         <?= icon('search', 16) ?>
-        <input type="search" name="q" value="<?= e($search) ?>" placeholder="Asset #, serial or description" aria-label="Search assets" maxlength="64">
+        <input type="search" name="q" value="<?= e($search) ?>" placeholder="Asset #, serial or description" aria-label="Search assets" maxlength="64" data-submit-on-clear>
     </form>
 </div>
 
