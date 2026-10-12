@@ -17,11 +17,16 @@ $assetId = (int) $asset['asset_id'];
                 <?= csrf_field() ?>
                 <div class="field">
                     <label for="attach-files">Add photos or documents</label>
-                    <input type="file" id="attach-files" name="files[]" multiple required
-                           accept=".jpg,.jpeg,.png,.webp,.pdf,.txt,.csv,image/jpeg,image/png,image/webp,application/pdf,text/plain,text/csv"
-                           data-max-bytes="<?= e($maxFile >= PHP_INT_MAX / 2 ? 0 : $maxFile) ?>"
-                           data-max-total="<?= e($maxTotal >= PHP_INT_MAX / 2 ? 0 : $maxTotal) ?>"
-                           data-max-count="<?= e($maxCount) ?>">
+                    <?php /* Works as a plain file chooser; app.js adds drag-and-drop onto the dashed box. */ ?>
+                    <div class="dropzone" data-dropzone>
+                        <p class="dropzone-text" data-dropzone-text>Choose files</p>
+                        <input type="file" id="attach-files" name="files[]" multiple required
+                               accept=".jpg,.jpeg,.png,.webp,.pdf,.txt,.csv,image/jpeg,image/png,image/webp,application/pdf,text/plain,text/csv"
+                               data-max-bytes="<?= e($maxFile >= PHP_INT_MAX / 2 ? 0 : $maxFile) ?>"
+                               data-max-total="<?= e($maxTotal >= PHP_INT_MAX / 2 ? 0 : $maxTotal) ?>"
+                               data-max-count="<?= e($maxCount) ?>">
+                        <ul class="file-list" data-file-list hidden></ul>
+                    </div>
                     <small class="muted">JPG, PNG, WebP, PDF, TXT or CSV. Up to <?= e($mb($maxFile)) ?> each, <?= e($maxCount) ?> files at a time
                         (upload_max_filesize <?= e($iniUpload) ?>, post_max_size <?= e($iniPost) ?>).</small>
                     <small class="upload-warning" data-upload-warning hidden>These files are too big or too many for the server to accept in one go. Choose fewer or smaller files.</small>

@@ -93,6 +93,64 @@
         });
     });
 
+    // ----- Drag-and-drop onto a file input: <div data-dropzone> around an <input type="file"> -----
+    // Plain choosing still works; dropped files are added to whatever is already selected. The names are
+    // listed in [data-file-list] (as text, never HTML).
+    document.querySelectorAll('[data-dropzone]').forEach(function (zone) {
+        var input = zone.querySelector('input[type="file"]');
+        var list = zone.querySelector('[data-file-list]');
+        var text = zone.querySelector('[data-dropzone-text]');
+        if (!input) { return; }
+        var canDrop = typeof DataTransfer === 'function';
+        if (canDrop && text) { text.textContent = 'Drag and drop files here, or choose them'; }
+
+        function size(bytes) {
+            if (bytes < 1024) { return bytes + ' bytes'; }
+            if (bytes < 1048576) { return (bytes / 1024).toFixed(0) + ' KB'; }
+            return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+        function show() {
+            if (!list) { return; }
+            list.textContent = '';
+            Array.prototype.forEach.call(input.files, function (f) {
+                var li = document.createElement('li');
+                li.textContent = f.name + ' (' + size(f.size) + ')';
+                list.appendChild(li);
+            });
+            list.hidden = input.files.length === 0;
+        }
+        input.addEventListener('change', show);
+
+        if (!canDrop) { return; }
+        ['dragenter', 'dragover'].forEach(function (type) {
+            zone.addEventListener(type, function (ev) {
+                ev.preventDefault();
+                zone.classList.add('is-over');
+            });
+        });
+        ['dragleave', 'dragend'].forEach(function (type) {
+            zone.addEventListener(type, function (ev) {
+                if (!ev.relatedTarget || !zone.contains(ev.relatedTarget)) { zone.classList.remove('is-over'); }
+            });
+        });
+        zone.addEventListener('drop', function (ev) {
+            ev.preventDefault();
+            zone.classList.remove('is-over');
+            var dropped = ev.dataTransfer && ev.dataTransfer.files;
+            if (!dropped || dropped.length === 0) { return; }
+            var merged = new DataTransfer();
+            var seen = {};
+            function add(f) {
+                var key = f.name + '|' + f.size + '|' + f.lastModified; // the same file dropped twice is added once
+                if (!seen[key]) { seen[key] = true; merged.items.add(f); }
+            }
+            Array.prototype.forEach.call(input.files, add);
+            Array.prototype.forEach.call(dropped, add);
+            input.files = merged.files;
+            input.dispatchEvent(new Event('change', { bubbles: true })); // size checks and the list update
+        });
+    });
+
     // ----- Mobile sidebar -----
     var body = document.body;
     document.querySelectorAll('[data-nav-toggle]').forEach(function (btn) {
