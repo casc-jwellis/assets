@@ -67,7 +67,7 @@ $mb = static fn(int $b): string => $b >= PHP_INT_MAX / 2 ? 'no limit' : number_f
 <div class="card form-card danger-card section">
     <h2>Delete all tables</h2>
     <p class="muted small">Starts completely over. Every table in the database is dropped (including the users and this account), the saved
-        settings file <code>config/config.php</code> is removed, and you are sent to the setup wizard to build a fresh database. This cannot be undone.</p>
+        settings file <code>config/config.php</code> and any attached files (<code>storage/attachments</code>) are removed, and you are sent to the setup wizard to build a fresh database. This cannot be undone.</p>
     <form method="post" action="<?= e(url('/import/reset')) ?>" autocomplete="off">
         <?= csrf_field() ?>
         <label class="check">

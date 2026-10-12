@@ -72,7 +72,7 @@ $statusLabels = ['active' => 'Active', 'retired' => 'Retired', 'all' => 'All'];
                             <?php if ($canBulk): ?>
                                 <td class="check-col"><input type="checkbox" name="ids[]" value="<?= e((int) $r['asset_id']) ?>" aria-label="Select <?= e($r['asset_number']) ?>"></td>
                             <?php endif; ?>
-                            <td class="nowrap"><a href="<?= e(url('/assets/' . (int) $r['asset_id']) . $listQs) ?>"><?= e($r['asset_number']) ?></a></td>
+                            <td class="nowrap"><a href="<?= e(url('/assets/' . (int) $r['asset_id']) . $listQs) ?>"><?= e($r['asset_number']) ?></a><?php if (!empty($r['attachment_count'])): ?><a class="paperclip" href="<?= e(url('/assets/' . (int) $r['asset_id']) . $listQs . '#attachments') ?>" title="<?= e((int) $r['attachment_count']) ?> attachment<?= (int) $r['attachment_count'] === 1 ? '' : 's' ?>"><?= icon('paperclip', 14) ?><?= e((int) $r['attachment_count']) ?></a><?php endif; ?></td>
                             <td><?= e($r['description']) ?><?php if ($isRetired): ?> <span class="badge badge-warn">Retired</span><?php endif; ?></td>
                             <td><?= e($r['type_name']) ?></td>
                             <td class="nowrap"><?= e($r['serial_number']) ?></td>

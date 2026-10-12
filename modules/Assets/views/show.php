@@ -1,6 +1,6 @@
 <?php
 /** Expects $a (asset row with joined names), $transfers (list), $depreciation (array|null), $updatedBy (string),
- *  $retired (bool), $retiredBy (string), $canEdit, $canRetire, $canRestore (bool), $listQs (string). */
+ *  $retired (bool), $retiredBy (string), $canEdit, $canRetire, $canRestore (bool), $attachmentsCard (HTML), $listQs (string). */
 $creator = trim(($a['creator_first'] ?? '') . ' ' . ($a['creator_last'] ?? '')) ?: (string) ($a['creator_username'] ?? '');
 $location = trim(($a['building_name'] ?? '') . ($a['room'] !== '' ? ', room ' . $a['room'] : ''), ', ');
 ?>
@@ -94,6 +94,8 @@ $location = trim(($a['building_name'] ?? '') . ($a['room'] !== '' ? ', room ' . 
         <div class="notes"><?= e($a['notes']) ?></div>
     <?php endif; ?>
 </div>
+
+<?= $attachmentsCard /* built and escaped by the Attachments module */ ?>
 
 <div class="card section">
     <div class="card-head"><h2>Transfer history</h2></div>

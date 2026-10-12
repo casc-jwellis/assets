@@ -77,8 +77,17 @@
         var warning = form && form.querySelector('[data-upload-warning]');
         var submit = form && form.querySelector('button[type="submit"]');
         if (!max || !warning) { return; }
+        // Optional extras for multi-file inputs: data-max-total (all files together) and data-max-count.
+        var maxTotal = parseInt(input.getAttribute('data-max-total'), 10) || 0;
+        var maxCount = parseInt(input.getAttribute('data-max-count'), 10) || 0;
         input.addEventListener('change', function () {
-            var tooBig = input.files.length > 0 && input.files[0].size > max;
+            var total = 0;
+            var tooBig = false;
+            Array.prototype.forEach.call(input.files, function (f) {
+                total += f.size;
+                if (f.size > max) { tooBig = true; }
+            });
+            if ((maxTotal && total > maxTotal) || (maxCount && input.files.length > maxCount)) { tooBig = true; }
             warning.hidden = !tooBig;
             if (submit) { submit.disabled = tooBig; }
         });

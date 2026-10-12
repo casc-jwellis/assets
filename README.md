@@ -29,8 +29,21 @@ numbers and every reference is translated. Large dumps need
 (nginx's default is only 1 MB). After the cutover, delete the `modules/Import` folder to remove the tool.
 
 The Import page also has a **Delete tables and Config** button for starting over while testing: it drops every table in
-the database, removes `config/config.php` and signs you out, and you land on the setup wizard to build a fresh database.
-It asks for a tick and the words `DELETE ALL`, and it cannot be undone.
+the database, removes `config/config.php` and the files in `storage/attachments/`, and signs you out, and you land on
+the setup wizard to build a fresh database. It asks for a tick and the words `DELETE ALL`, and it cannot be undone.
+
+### Attachments
+
+Each asset page has an **Attachments** card for photos and documents: JPG, PNG, WebP, PDF, TXT and CSV (what a file
+is comes from its content, not its name). Anyone with write access to the asset's department can add and delete
+files (retired assets included); anyone who can see the asset can open them. The size limit is whatever PHP and nginx
+allow (`upload_max_filesize`, `post_max_size`, `max_file_uploads`, and nginx's `client_max_body_size`); the upload form
+shows the PHP values. Migration `014` creates the table.
+
+The files are stored in `storage/attachments/` (outside the web root, never linked directly; the app serves them after
+checking access). **A database dump does not contain them: back up `storage/attachments/` together with the database.**
+Thumbnails are made when PHP's GD extension is installed (`php-gd`); without it the full image is shown instead.
+To remove the feature, delete `modules/Attachments`.
 
 ### Migrations
 

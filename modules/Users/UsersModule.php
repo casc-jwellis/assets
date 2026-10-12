@@ -212,7 +212,11 @@ final class UsersModule extends Module
         $pdo = $db->pdo();
         $pdo->beginTransaction();
         try {
-            foreach (['assets' => ['user_id', 'updated_by', 'retired_by'], 'transfers' => ['user_id']] as $table => $columns) {
+            $owned = ['assets' => ['user_id', 'updated_by', 'retired_by'], 'transfers' => ['user_id']];
+            if ($this->hasAttachments()) {
+                $owned['asset_attachments'] = ['uploaded_by'];
+            }
+            foreach ($owned as $table => $columns) {
                 foreach ($columns as $column) { // names are constants above, never from the request
                     $db->execute("UPDATE `{$table}` SET `{$column}` = ? WHERE `{$column}` = ?", [$toId, $fromId]);
                 }
@@ -236,7 +240,7 @@ final class UsersModule extends Module
             $this->redirect('/users/' . $fromId . $this->listQs);
         }
 
-        $moved = $counts['added'] + $counts['changed'] + $counts['retired'] + $counts['transfers'];
+        $moved = $counts['added'] + $counts['changed'] + $counts['retired'] + $counts['transfers'] + $counts['attachments'];
         $this->app->session->flash('success', 'Merged "' . $source['username'] . '" into "' . $target['username'] . '": '
             . number_format($moved) . ' record' . ($moved === 1 ? '' : 's') . ' moved, and "' . $source['username'] . '" was deleted.');
         $this->redirect('/users/' . $toId . $this->listQs);
@@ -273,15 +277,22 @@ final class UsersModule extends Module
         return [$source, $target];
     }
 
-    /** @return array{added:int, changed:int, retired:int, transfers:int} how much is attached to this user */
+    /** Files attached to assets record who added them (table from migration 014). */
+    private function hasAttachments(): bool
+    {
+        return $this->app->migrationApplied('014_asset_attachments.sql');
+    }
+
+    /** @return array{added:int, changed:int, retired:int, transfers:int, attachments:int} how much is attached to this user */
     private function mergeCounts(int $userId): array
     {
         $db = $this->app->db;
         return [
-            'added'     => (int) $db->value('SELECT COUNT(*) FROM assets WHERE user_id = ?', [$userId]),
-            'changed'   => (int) $db->value('SELECT COUNT(*) FROM assets WHERE updated_by = ?', [$userId]),
-            'retired'   => (int) $db->value('SELECT COUNT(*) FROM assets WHERE retired_by = ?', [$userId]),
-            'transfers' => (int) $db->value('SELECT COUNT(*) FROM transfers WHERE user_id = ?', [$userId]),
+            'added'       => (int) $db->value('SELECT COUNT(*) FROM assets WHERE user_id = ?', [$userId]),
+            'changed'     => (int) $db->value('SELECT COUNT(*) FROM assets WHERE updated_by = ?', [$userId]),
+            'retired'     => (int) $db->value('SELECT COUNT(*) FROM assets WHERE retired_by = ?', [$userId]),
+            'transfers'   => (int) $db->value('SELECT COUNT(*) FROM transfers WHERE user_id = ?', [$userId]),
+            'attachments' => $this->hasAttachments() ? (int) $db->value('SELECT COUNT(*) FROM asset_attachments WHERE uploaded_by = ?', [$userId]) : 0,
         ];
     }
 

@@ -172,9 +172,15 @@ final class ImportModule extends Module
             $this->fail('Deleting the tables failed part-way, so some may be gone: ' . $e->getMessage());
         }
 
+        // Uploaded dumps and attached files belong to the data that was just deleted.
         $dir = $this->importDir();
         foreach ($dir !== null ? (glob($dir . '/*.sql') ?: []) : [] as $f) {
             @unlink($f);
+        }
+        foreach (glob(APP_ROOT . '/storage/attachments/*') ?: [] as $f) {
+            if (is_file($f)) {
+                @unlink($f);
+            }
         }
 
         $removed = @unlink(Config::path());
@@ -281,17 +287,7 @@ final class ImportModule extends Module
 
     private function iniBytes(string $key): int
     {
-        $v = trim((string) ini_get($key));
-        if ($v === '' || $v === '-1') {
-            return PHP_INT_MAX;
-        }
-        $n = (int) $v;
-        return match (strtolower(substr($v, -1))) {
-            'g' => $n * 1024 ** 3,
-            'm' => $n * 1024 ** 2,
-            'k' => $n * 1024,
-            default => $n,
-        };
+        return ini_bytes($key);
     }
 
     private function uploadError(int $code): string

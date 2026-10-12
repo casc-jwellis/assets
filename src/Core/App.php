@@ -25,6 +25,9 @@ final class App
     /** @var list<Module> */
     private array $modules = [];
 
+    /** @var array<string,Module> by folder name, e.g. 'Attachments' */
+    private array $modulesByName = [];
+
     private function __construct(Config $config)
     {
         $this->nonce = base64_encode(random_bytes(16));
@@ -168,7 +171,17 @@ final class App
             $module = new $class($this);
             $module->routes($this->router);
             $this->modules[] = $module;
+            $this->modulesByName[$name] = $module;
         }
+    }
+
+    /**
+     * Another module by folder name, or null if it is not installed. Lets one module offer a piece of
+     * its page to another (the Attachments card on the asset page) and keeps working if the folder is removed.
+     */
+    public function module(string $name): ?Module
+    {
+        return $this->modulesByName[$name] ?? null;
     }
 
     public function sendSecurityHeaders(): void

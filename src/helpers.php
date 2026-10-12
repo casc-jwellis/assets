@@ -67,6 +67,35 @@ function fmt_money(mixed $value): string
     return '$' . number_format((float) $value, 2);
 }
 
+/** A byte count for people: 1536 -> "1.5 KB". */
+function fmt_bytes(int|float|string $bytes): string
+{
+    $b = (float) $bytes;
+    foreach (['bytes', 'KB', 'MB', 'GB'] as $i => $unit) {
+        if ($b < 1024 || $unit === 'GB') {
+            return ($i === 0 ? number_format($b) : number_format($b, $b < 10 ? 1 : 0)) . ' ' . $unit;
+        }
+        $b /= 1024;
+    }
+    return '';
+}
+
+/** A php.ini size setting ("64M", "2G", "-1") in bytes; PHP_INT_MAX when unlimited. */
+function ini_bytes(string $key): int
+{
+    $v = trim((string) ini_get($key));
+    if ($v === '' || $v === '-1') {
+        return PHP_INT_MAX;
+    }
+    $n = (int) $v;
+    return match (strtolower(substr($v, -1))) {
+        'g' => $n * 1024 ** 3,
+        'm' => $n * 1024 ** 2,
+        'k' => $n * 1024,
+        default => $n,
+    };
+}
+
 /** True if $path is the current page or one of its children (sidebar highlighting). */
 function is_active(string $path): bool
 {

@@ -1,7 +1,7 @@
 <?php
 /**
  * Review a merge. Expects $source (the duplicate that will be deleted), $target (the account to keep),
- * $counts (added, changed, retired, transfers) and $perms (department access after the merge).
+ * $counts (added, changed, retired, transfers, attachments) and $perms (department access after the merge).
  */
 $level = static fn(?string $p): string => $p === 'rw' ? 'Read & write' : ($p === 'r' ? 'Read' : 'None');
 $name = static fn(array $u): string => trim($u['firstname'] . ' ' . $u['lastname']);
@@ -31,6 +31,7 @@ $back = url('/users/' . rawurlencode((string) $source['user_id'])) . $listQs;
                 <tr><td>Assets last changed by <?= e($source['username']) ?></td><td class="num"><?= e(number_format($counts['changed'])) ?></td></tr>
                 <tr><td>Assets retired by <?= e($source['username']) ?></td><td class="num"><?= e(number_format($counts['retired'])) ?></td></tr>
                 <tr><td>Transfers and retire/restore history by <?= e($source['username']) ?></td><td class="num"><?= e(number_format($counts['transfers'])) ?></td></tr>
+                <tr><td>Files attached by <?= e($source['username']) ?></td><td class="num"><?= e(number_format($counts['attachments'])) ?></td></tr>
             </tbody>
         </table>
     </div>

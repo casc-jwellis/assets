@@ -155,7 +155,14 @@ final class AssetsModule extends Module
         $canWrite = $this->app->auth->canWrite((int) $asset['department_id']);
         $editing = $this->editingReady();
 
+        // The Attachments module supplies its own card (empty if that module is not installed).
+        $attachments = $this->app->module('Attachments');
+        $attachmentsCard = $attachments !== null && method_exists($attachments, 'card')
+            ? $attachments->card($asset, $canWrite, $this->listQs)
+            : '';
+
         return $this->render('show', [
+            'attachmentsCard' => $attachmentsCard,
             'title'        => 'Asset ' . $asset['asset_number'],
             'a'            => $asset,
             'transfers'    => $transfers,
@@ -191,9 +198,12 @@ final class AssetsModule extends Module
         $this->listQs = $this->listState($search, $page, ['status' => $statusParam]);
 
         $retirement = $this->retirementReady();
+        // A paperclip with a count beside assets that have attachments (only once that table exists).
+        $attachments = $this->app->module('Attachments') !== null && $this->app->migrationApplied('014_asset_attachments.sql');
         $rows = $db->all(
             "SELECT a.asset_id, a.asset_number, a.serial_number, a.description, a.cost, a.room, a.verified_date,
-                    t.name AS type_name, d.abbr AS dept, b.abbr AS building" . ($retirement ? ', a.retired' : '') . "
+                    t.name AS type_name, d.abbr AS dept, b.abbr AS building" . ($retirement ? ', a.retired' : '')
+                . ($attachments ? ', (SELECT COUNT(*) FROM asset_attachments x WHERE x.asset_id = a.asset_id) AS attachment_count' : '') . "
                FROM assets a
                LEFT JOIN asset_types t ON t.type_id = a.type_id
                LEFT JOIN departments d ON d.department_id = a.department_id
