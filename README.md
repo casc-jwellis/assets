@@ -55,6 +55,27 @@ accent colour would be hard to read (contrast below 4.5:1) is refused. The setti
 (migration `015`); the colours reach the pages as a small generated stylesheet at `/theme/css`. The name set here
 replaces the one entered during setup. To remove the feature, delete `modules/Theme`.
 
+### Email notifications
+
+**Email** in the sidebar (administrators only) sends an email to a list of addresses when an asset is added, when
+assets are retired and when assets are transferred (an edit that changes department, building or room counts; a bulk
+retire or transfer sends one email listing everything that changed). Each event can be switched off separately.
+Settings: the mail server (host, port, **STARTTLS on 587** or **SSL/TLS on 465**), username and password, the "send from"
+address, who receives the emails (one address per line), and the public address of the site for the links. There is a
+**Send test email** button and a short log of what was sent and why something failed.
+
+- **Gmail:** use `smtp.gmail.com` with STARTTLS (587) or SSL/TLS (465), the full address as the username, and an
+  **app password** (turn on 2-Step Verification for the account, then Google Account → Security → App passwords). A normal
+  account password is refused. The "send from" address must be that account or one of its aliases.
+- **The password** is stored encrypted in the database. The key is `storage/secret.key`, created on first use: it is outside
+  the web root, never committed and not part of a database dump, so a dump alone does not reveal the password. **Back up
+  `storage/` together with the database and treat that backup as sensitive.** If the key is lost, enter the password again.
+- **Sending never blocks the work.** If the mail server is down or refuses, the asset change is still saved; the person who
+  made it sees a warning and the details are in the log on the Email page. Connections time out quickly (10 to 30 seconds).
+- **Needs** migrations `015` (settings) and `016` (email log), and the PHP `openssl` extension for encrypted connections.
+  Mail is sent by the bundled library in `lib/tehsmtp/` (a pure-PHP SMTP client; nothing to install). To remove the feature,
+  delete `modules/Email` (the library can stay or go).
+
 ### Migrations
 
 `migrations/*.sql` are applied once each, in filename order, and recorded in a `schema_migrations` table.

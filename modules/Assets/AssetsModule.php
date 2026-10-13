@@ -383,6 +383,18 @@ final class AssetsModule extends Module
                     ], (int) ($cur['version'] ?? $version), true);
                 }
                 $this->app->session->flash('success', 'Asset ' . $f['asset_number'] . ($isNew ? ' created.' : ' saved.'));
+                // The change is saved; now tell the people on the notification list (never blocks or undoes the save).
+                if ($isNew) {
+                    $this->warnAbout($this->mailer()?->assetCreated($id));
+                } elseif ((int) $existing['department_id'] !== $f['department_id'] || (int) $existing['building_id'] !== $f['building_id'] || (string) $existing['room'] !== $f['room']) {
+                    $this->warnAbout($this->mailer()?->assetsTransferred([[
+                        'asset_id'     => $id,
+                        'asset_number' => $f['asset_number'],
+                        'description'  => $f['description'],
+                        'from'         => $this->placeLabel((int) $existing['department_id'], (int) $existing['building_id'], (string) $existing['room'], $lookups),
+                        'to'           => $this->placeLabel($f['department_id'], $f['building_id'], $f['room'], $lookups),
+                    ]], $f['reason']));
+                }
                 $this->redirect('/assets/' . $id . $this->listQs);
             } catch (\PDOException $e) {
                 if ((string) $e->getCode() === '23000') {
@@ -649,7 +661,34 @@ final class AssetsModule extends Module
             $msg .= ' Skipped: ' . $this->skipSummary($skipped) . '.';
         }
         $this->app->session->flash('success', $msg);
+        // One email per action, listing every asset that really changed (nothing is sent if none did).
+        if ($this->applied !== []) {
+            $this->warnAbout($action === 'retire'
+                ? $this->mailer()?->assetsRetired($this->applied, ['date' => $f['retire_date'], 'method' => $f['disposal_method'], 'notes' => $f['retired_notes']])
+                : $this->mailer()?->assetsTransferred($this->applied, $f['reason']));
+        }
         $this->redirect('/assets' . $this->listQs);
+    }
+
+    /** The Email module's notifier, or null if that module is not installed. */
+    private function mailer(): ?object
+    {
+        $module = $this->app->module('Email');
+        return $module !== null && method_exists($module, 'notifier') ? $module->notifier() : null;
+    }
+
+    /** Show the person who just did something why the notification email did not go out (null = all fine). */
+    private function warnAbout(?string $warning): void
+    {
+        if ($warning !== null) {
+            $this->app->session->flash('warning', $warning);
+        }
+    }
+
+    /** "IT MAIN101" for the notification emails. */
+    private function placeLabel(int $dept, int $building, string $room, array $lookups): string
+    {
+        return trim(($lookups['dept_abbr'][$dept] ?? '') . ' ' . ($lookups['building_abbr'][$building] ?? '') . $room);
     }
 
     /** @return list<string> */
@@ -699,6 +738,9 @@ final class AssetsModule extends Module
         return $e;
     }
 
+    /** The assets a bulk action really changed (for the notification email); filled by applyRetire / applyTransfer. */
+    private array $applied = [];
+
     /** @return int number of assets actually retired */
     private function applyRetire(array $targets, array $f): int
     {
@@ -719,6 +761,13 @@ final class AssetsModule extends Module
             );
             if ($n > 0) {
                 $this->logRetirement($t, $uid, $f['retire_date'] . ' 00:00:00', $f['disposal_method']);
+                $this->applied[] = [
+                    'asset_id'     => (int) $t['asset_id'],
+                    'asset_number' => (string) $t['asset_number'],
+                    'description'  => (string) $t['description'],
+                    'dept'         => (string) ($t['dept'] ?? ''),
+                    'location'     => trim((string) ($t['building'] ?? '') . ' ' . $t['room']),
+                ];
                 $changed++;
             }
         }
@@ -749,6 +798,13 @@ final class AssetsModule extends Module
                     (int) $t['asset_id'], $uid, $now, $f['reason'], $lookups,
                     (int) $t['department_id'], (int) $t['building_id'], (string) $t['room'], $dept, $building, $room
                 );
+                $this->applied[] = [
+                    'asset_id'     => (int) $t['asset_id'],
+                    'asset_number' => (string) $t['asset_number'],
+                    'description'  => (string) $t['description'],
+                    'from'         => $this->placeLabel((int) $t['department_id'], (int) $t['building_id'], (string) $t['room'], $lookups),
+                    'to'           => $this->placeLabel($dept, $building, $room, $lookups),
+                ];
                 $changed++;
             }
         }

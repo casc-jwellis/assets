@@ -515,3 +515,7 @@ code { font-size: .88em; background: var(--surface-2); padding: 1px 5px; border-
 .pv-btn { display: inline-block; padding: 3px 10px; border-radius: 6px; background: var(--accent); color: var(--accent-contrast); font-weight: 600; }
 .pv-badge { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); }
 .reset-form { margin: 18px 0 8px; }
+
+/* ---------- Email page ---------- */
+.label-like { display: block; margin-bottom: 6px; font-weight: 550; font-size: .9rem; }
+.log-to { font-size: .85rem; white-space: nowrap; }
