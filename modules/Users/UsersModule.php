@@ -43,13 +43,47 @@ final class UsersModule extends Module
 
     // ---- list ----
 
-    /** Keep the status filter (as well as search and page) when moving between the list and a user. */
+    /**
+     * Sortable columns: key => ORDER BY columns (the chosen direction applies to each). Only these keys are
+     * ever used in SQL; whatever is in the request is matched against this list, never inserted.
+     */
+    private const SORTS = [
+        'name'     => ['u.lastname', 'u.firstname', 'u.username'],
+        'username' => ['u.username'],
+        'id'       => ['u.user_id'],
+        'email'    => ['u.email'],
+        'dept'     => ['d.abbr'],
+        // Administrators first (or last), then by how many departments someone has; an admin's count is not shown, so it is ignored.
+        'role'     => ['u.admin', 'CASE WHEN u.admin = 1 THEN 0 ELSE (SELECT COUNT(*) FROM permissions px WHERE px.user_id = u.user_id) END'],
+        'login'    => ['u.lastlogin'],
+        'status'   => ['u.disabled'],
+    ];
+    private const DEFAULT_SORT = 'name';
+
+    /** @return array{0:string, 1:string} the sort column key and 'asc'|'desc' */
+    private function sortState(Request $req): array
+    {
+        $key = (string) $req->query('sort');
+        if (!isset(self::SORTS[$key]) || ($key === 'status' && !$this->app->auth->supportsDisabling())) {
+            $key = self::DEFAULT_SORT;
+        }
+        return [$key, $req->query('dir') === 'desc' ? 'desc' : 'asc'];
+    }
+
+    /** The ?sort= and ?dir= values to put in links: nothing for the default order. */
+    private function sortParams(string $key, string $dir): array
+    {
+        return ['sort' => $key === self::DEFAULT_SORT ? null : $key, 'dir' => $dir === 'desc' ? 'desc' : null];
+    }
+
+    /** Keep the status filter and the sort (as well as search and page) when moving between the list and a user. */
     protected function rememberList(Request $req): void
     {
+        [$sort, $dir] = $this->sortState($req);
         $this->listQs = $this->listState(
             mb_substr(trim((string) $req->query('q')), 0, 64),
             max(1, (int) $req->query('page', '1')),
-            ['status' => $this->statusParam($this->statusFilter($req))]
+            ['status' => $this->statusParam($this->statusFilter($req))] + $this->sortParams($sort, $dir)
         );
     }
 
@@ -76,9 +110,11 @@ final class UsersModule extends Module
         $page = max(1, (int) $req->query('page', '1'));
         $status = $this->statusFilter($req);
         $statusParam = $this->statusParam($status);
+        [$sort, $dir] = $this->sortState($req);
+        $sortParams = $this->sortParams($sort, $dir);
 
         if ($req->query('q') !== null && $search === '') {
-            $this->redirect('/users' . $this->listState('', $page, ['status' => $statusParam]));
+            $this->redirect('/users' . $this->listState('', $page, ['status' => $statusParam] + $sortParams));
         }
 
         $where = '1 = 1';
@@ -99,7 +135,15 @@ final class UsersModule extends Module
         $pages = max(1, (int) ceil($total / self::PER_PAGE));
         $page = min($page, $pages);
         $offset = ($page - 1) * self::PER_PAGE;
-        $this->listQs = $this->listState($search, $page, ['status' => $statusParam]);
+        $this->listQs = $this->listState($search, $page, ['status' => $statusParam] + $sortParams);
+
+        // The chosen column in the chosen direction, then name order A to Z so rows with equal values keep a
+        // stable order (and do not shuffle between pages).
+        $direction = strtoupper($dir);
+        $order = implode(', ', [
+            ...array_map(static fn(string $c): string => "{$c} {$direction}", self::SORTS[$sort]),
+            'u.lastname ASC', 'u.firstname ASC', 'u.username ASC', 'u.user_id ASC',
+        ]);
 
         $cols = 'u.user_id, u.username, u.firstname, u.lastname, u.email, u.admin, u.lastlogin, d.abbr AS dept'
             . ($this->app->auth->supportsDisabling() ? ', u.disabled' : '');
@@ -109,7 +153,7 @@ final class UsersModule extends Module
                FROM users u
                LEFT JOIN departments d ON d.department_id = u.department_id
               WHERE {$where}
-              ORDER BY u.lastname, u.firstname, u.username
+              ORDER BY {$order}
               LIMIT " . self::PER_PAGE . " OFFSET {$offset}",
             $params
         );
@@ -122,6 +166,8 @@ final class UsersModule extends Module
             'pages'  => $pages,
             'total'  => $total,
             'status' => $status,
+            'sort'   => $sort,
+            'dir'    => $dir,
             'canDisable' => $this->app->auth->supportsDisabling(),
         ]);
     }

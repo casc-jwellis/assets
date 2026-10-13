@@ -1,11 +1,35 @@
 <?php
-/** Expects $rows, $search, $page, $pages, $total, $status ('active'|'disabled'|'all'), $canDisable, $listQs. */
+/** Expects $rows, $search, $page, $pages, $total, $status ('active'|'disabled'|'all'), $sort, $dir ('asc'|'desc'), $canDisable, $listQs. */
+// The sort as it goes in a link: nothing for the default order (name, A to Z).
+$sortQuery = static fn(string $key, string $d): array => [
+    'sort' => $key === 'name' ? null : $key,
+    'dir' => $d === 'desc' ? 'desc' : null,
+];
 $pageUrl = static fn(int $p): string => url('/users') . '?' . http_build_query(array_filter([
     'q' => $search,
     'status' => $status === 'active' ? null : $status,
     'page' => $p > 1 ? $p : null,
-]));
-$allUrl = url('/users') . '?' . http_build_query(array_filter(['q' => $search, 'status' => 'all']));
+] + $sortQuery($sort, $dir)));
+$allUrl = url('/users') . '?' . http_build_query(array_filter(['q' => $search, 'status' => 'all'] + $sortQuery($sort, $dir)));
+
+// Column headers: [sort key, label, direction of the first click]. Last sign-in starts newest-first.
+$columns = [
+    ['name', 'Name', 'asc'], ['username', 'Username', 'asc'], ['id', 'User ID', 'asc'], ['email', 'Email', 'asc'],
+    ['dept', 'Home dept', 'asc'], ['role', 'Role', 'asc'], ['login', 'Last sign-in', 'desc'],
+];
+if ($canDisable) {
+    $columns[] = ['status', 'Status', 'asc'];
+}
+$sortLink = static function (string $key, string $label, string $first) use ($sort, $dir, $search, $status, $sortQuery): string {
+    $active = $key === $sort;
+    $next = $active ? ($dir === 'asc' ? 'desc' : 'asc') : $first; // clicking the sorted column reverses it
+    $href = url('/users') . '?' . http_build_query(array_filter([
+        'q' => $search,
+        'status' => $status === 'active' ? null : $status,
+    ] + $sortQuery($key, $next)));
+    $arrow = $active ? ' <span class="sort-arrow" aria-hidden="true">' . ($dir === 'asc' ? '▲' : '▼') . '</span>' : '';
+    return '<a class="sort-link" href="' . e($href) . '" title="Sort by ' . e(strtolower($label)) . '">' . e($label) . $arrow . '</a>';
+};
 $statusLabels = ['active' => 'Active', 'disabled' => 'Disabled', 'all' => 'All'];
 $never = static fn($v): bool => $v === null || $v === '' || str_starts_with((string) $v, '0000') || str_starts_with((string) $v, '1970-01-01');
 ?>
@@ -27,6 +51,10 @@ $never = static fn($v): bool => $v === null || $v === '' || str_starts_with((str
                     <?php endforeach; ?>
                 </select>
             <?php endif; ?>
+            <?php /* Searching or filtering keeps the current sort. */ ?>
+            <?php foreach (array_filter($sortQuery($sort, $dir)) as $k => $v): ?>
+                <input type="hidden" name="<?= e($k) ?>" value="<?= e($v) ?>">
+            <?php endforeach; ?>
         </form>
         <a class="btn btn-primary" href="<?= e(url('/users/new') . $listQs) ?>">Add user</a>
     </div>
@@ -56,8 +84,9 @@ $never = static fn($v): bool => $v === null || $v === '' || str_starts_with((str
             <table class="table">
                 <thead>
                     <tr>
-                        <th>Name</th><th>Username</th><th>User ID</th><th>Email</th><th>Home dept</th>
-                        <th>Role</th><th>Last sign-in</th><th>Status</th>
+                        <?php foreach ($columns as [$key, $label, $first]): ?>
+                            <th scope="col" aria-sort="<?= $key === $sort ? ($dir === 'asc' ? 'ascending' : 'descending') : 'none' ?>"><?= $sortLink($key, $label, $first) /* built and escaped above */ ?></th>
+                        <?php endforeach; ?>
                     </tr>
                 </thead>
                 <tbody>
