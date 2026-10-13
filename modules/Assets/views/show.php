@@ -32,6 +32,7 @@ $location = trim(($a['building_name'] ?? '') . ($a['room'] !== '' ? ', room ' . 
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="retire">
                 <input type="hidden" name="ids[]" value="<?= e((int) $a['asset_id']) ?>">
+                <input type="hidden" name="from_asset" value="<?= e((int) $a['asset_id']) ?>"><?php /* so "back" on the review page returns here, not to the list */ ?>
                 <button type="submit" class="btn">Retire…</button>
             </form>
         <?php endif; ?>

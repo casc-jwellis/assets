@@ -2,17 +2,19 @@
 /**
  * Review + details for a bulk retire/transfer (also used for retiring a single asset).
  * Expects $action ('retire'|'transfer'), $targets, $skipped, $skipSummary, $truncated, $bulkLimit,
- * $f (field values), $errors, $methods, $buildings, $writableDepartments, $listQs.
+ * $f (field values), $errors, $methods, $buildings, $writableDepartments, $fromAsset (asset id or 0), $listQs.
  */
 $isRetire = $action === 'retire';
 $n = count($targets);
 $show = array_slice($targets, 0, 50);
-$back = url('/assets') . $listQs;
+// Opened from one asset's own page: back and Cancel return to that asset, otherwise to the list.
+$back = $fromAsset > 0 ? url('/assets/' . (int) $fromAsset) . $listQs : url('/assets') . $listQs;
+$backLabel = $fromAsset > 0 ? 'Back to ' . $targets[0]['asset_number'] : ($listQs !== '' ? 'Back to results' : 'All assets');
 ?>
 <div class="narrow-col">
 <div class="page-head">
     <div>
-        <a class="back-link" href="<?= e($back) ?>">&larr; <?= $listQs !== '' ? 'Back to results' : 'All assets' ?></a>
+        <a class="back-link" href="<?= e($back) ?>">&larr; <?= e($backLabel) ?></a>
         <h1><?= $isRetire ? 'Retire' : 'Transfer' ?> <?= e(number_format($n)) ?> asset<?= $n === 1 ? '' : 's' ?></h1>
     </div>
 </div>
@@ -33,6 +35,9 @@ $back = url('/assets') . $listQs;
 <form method="post" action="<?= e(url('/assets/bulk/apply') . $listQs) ?>" autocomplete="off">
     <?= csrf_field() ?>
     <input type="hidden" name="action" value="<?= e($action) ?>">
+    <?php if ($fromAsset > 0): ?>
+        <input type="hidden" name="from_asset" value="<?= e((int) $fromAsset) ?>">
+    <?php endif; ?>
     <?php foreach ($targets as $t): ?>
         <input type="hidden" name="ids[]" value="<?= e((int) $t['asset_id']) ?>">
     <?php endforeach; ?>

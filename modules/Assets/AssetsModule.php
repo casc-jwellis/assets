@@ -582,6 +582,7 @@ final class AssetsModule extends Module
     public function bulkReview(Request $req): string
     {
         $this->rememberList($req);
+        $this->rememberSource($req);
         $this->requireBulk();
         $action = $this->bulkAction($req);
         [$targets, $skipped, $truncated] = $this->bulkTargets($req, true);
@@ -589,7 +590,7 @@ final class AssetsModule extends Module
         if ($targets === []) {
             $this->app->session->flash('danger', 'None of the selected assets can be ' . ($action === 'retire' ? 'retired' : 'transferred')
                 . ($skipped !== [] ? ' (' . $this->skipSummary($skipped) . ')' : '') . '.');
-            $this->redirect('/assets' . $this->listQs);
+            $this->redirect($this->bulkBack());
         }
         return $this->bulkForm($action, $targets, $skipped, $truncated, $this->bulkDefaults(), []);
     }
@@ -598,13 +599,14 @@ final class AssetsModule extends Module
     public function bulkApply(Request $req): string
     {
         $this->rememberList($req);
+        $this->rememberSource($req);
         $this->requireBulk();
         $action = $this->bulkAction($req);
         // Re-check permissions and state now: the review page is not trusted.
         [$targets, $skipped] = $this->bulkTargets($req, false);
         if ($targets === []) {
             $this->app->session->flash('danger', 'None of the selected assets can be changed any more' . ($skipped !== [] ? ' (' . $this->skipSummary($skipped) . ')' : '') . '.');
-            $this->redirect('/assets' . $this->listQs);
+            $this->redirect($this->bulkBack());
         }
 
         $f = [
@@ -753,6 +755,23 @@ final class AssetsModule extends Module
         return $changed;
     }
 
+    /** Set when one asset's own Retire button opened the bulk page, so "back" returns to that asset. */
+    private int $fromAsset = 0;
+
+    /** Only believed when that asset is the single one posted; anything else is the list's own selection. */
+    private function rememberSource(Request $req): void
+    {
+        $from = (int) $req->post('from_asset');
+        $ids = array_values(array_unique(array_map('intval', $req->postArray('ids'))));
+        $this->fromAsset = $from > 0 && $ids === [$from] ? $from : 0;
+    }
+
+    /** Where "back" and "Cancel" on the bulk pages lead: the asset it was opened from, else the list. */
+    private function bulkBack(): string
+    {
+        return ($this->fromAsset > 0 ? '/assets/' . $this->fromAsset : '/assets') . $this->listQs;
+    }
+
     private function bulkAction(Request $req): string
     {
         $action = (string) $req->post('action');
@@ -851,6 +870,8 @@ final class AssetsModule extends Module
             'skipSummary' => $skipped === [] ? '' : $this->skipSummary($skipped),
             'truncated'   => $truncated,
             'bulkLimit'   => self::BULK_LIMIT,
+            // The asset whose own Retire button led here (so back/Cancel return to it), if it is the one target.
+            'fromAsset'   => count($targets) === 1 && (int) $targets[0]['asset_id'] === $this->fromAsset ? $this->fromAsset : 0,
             'f'           => $f,
             'errors'      => $errors,
             'methods'     => self::DISPOSAL_METHODS,
