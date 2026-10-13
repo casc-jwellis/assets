@@ -1,14 +1,35 @@
 <?php
 /**
  * Expects $rows, $search, $page, $pages, $total, $status ('active'|'retired'|'all'), $showStatus,
- * $canAdd, $canBulk, $listQs (current search/page/status, appended to links).
+ * $sort, $dir ('asc'|'desc'), $canAdd, $canBulk, $listQs (current search/page/status/sort, appended to links).
  */
+// The sort as it goes in a link: nothing for the default order (asset number, A to Z).
+$sortQuery = static fn(string $key, string $d): array => [
+    'sort' => $key === 'asset' ? null : $key,
+    'dir' => $d === 'desc' ? 'desc' : null,
+];
 $pageUrl = static fn(int $p): string => url('/assets') . '?' . http_build_query(array_filter([
     'q' => $search,
     'status' => $status === 'active' ? null : $status,
     'page' => $p > 1 ? $p : null,
-]));
+] + $sortQuery($sort, $dir)));
 $statusLabels = ['active' => 'Active', 'retired' => 'Retired', 'all' => 'All'];
+
+// Column headers: [sort key, label, direction of the first click, th class]. Cost starts biggest-first.
+$columns = [
+    ['asset', 'Asset #', 'asc', ''], ['desc', 'Description', 'asc', ''], ['type', 'Type', 'asc', ''], ['serial', 'Serial', 'asc', ''],
+    ['dept', 'Dept', 'asc', ''], ['location', 'Location', 'asc', ''], ['cost', 'Cost', 'desc', 'num'], ['verified', 'Verified', 'asc', ''],
+];
+$sortLink = static function (string $key, string $label, string $first) use ($sort, $dir, $search, $status, $sortQuery): string {
+    $active = $key === $sort;
+    $next = $active ? ($dir === 'asc' ? 'desc' : 'asc') : $first; // clicking the sorted column reverses it
+    $href = url('/assets') . '?' . http_build_query(array_filter([
+        'q' => $search,
+        'status' => $status === 'active' ? null : $status,
+    ] + $sortQuery($key, $next)));
+    $arrow = $active ? ' <span class="sort-arrow" aria-hidden="true">' . ($dir === 'asc' ? '▲' : '▼') . '</span>' : '';
+    return '<a class="sort-link" href="' . e($href) . '" title="Sort by ' . e(strtolower($label)) . '">' . e($label) . $arrow . '</a>';
+};
 ?>
 <div class="page-head">
     <div>
@@ -30,6 +51,10 @@ $statusLabels = ['active' => 'Active', 'retired' => 'Retired', 'all' => 'All'];
                     <?php endforeach; ?>
                 </select>
             <?php endif; ?>
+            <?php /* Searching or filtering keeps the current sort. */ ?>
+            <?php foreach (array_filter($sortQuery($sort, $dir)) as $k => $v): ?>
+                <input type="hidden" name="<?= e($k) ?>" value="<?= e($v) ?>">
+            <?php endforeach; ?>
         </form>
         <?php if ($canAdd): ?>
             <a class="btn btn-primary" href="<?= e(url('/assets/new') . $listQs) ?>">Add asset</a>
@@ -61,8 +86,9 @@ $statusLabels = ['active' => 'Active', 'retired' => 'Retired', 'all' => 'All'];
                             <?php if ($canBulk): ?>
                                 <th class="check-col"><input type="checkbox" data-select-all aria-label="Select all assets on this page"></th>
                             <?php endif; ?>
-                            <th>Asset #</th><th>Description</th><th>Type</th><th>Serial</th>
-                            <th>Dept</th><th>Location</th><th class="num">Cost</th><th>Verified</th>
+                            <?php foreach ($columns as [$key, $label, $first, $class]): ?>
+                                <th scope="col"<?= $class !== '' ? ' class="' . e($class) . '"' : '' ?> aria-sort="<?= $key === $sort ? ($dir === 'asc' ? 'ascending' : 'descending') : 'none' ?>"><?= $sortLink($key, $label, $first) /* built and escaped above */ ?></th>
+                            <?php endforeach; ?>
                         </tr>
                     </thead>
                     <tbody>

@@ -58,14 +58,44 @@ final class AssetsModule extends Module
 
     // ------------------------------------------------------------------ read
 
-    /** The list view to return to: search text, page and status filter (see Module::listState). */
+    /**
+     * Sortable columns: key => ORDER BY columns (the chosen direction applies to each). Only these keys are
+     * ever used in SQL; whatever is in the request is matched against this list, never inserted.
+     */
+    private const SORTS = [
+        'asset'    => ['a.asset_number'],
+        'desc'     => ['a.description'],
+        'type'     => ['t.name'],
+        'serial'   => ['a.serial_number'],
+        'dept'     => ['d.abbr'],
+        'location' => ['b.abbr', 'a.room'],
+        'cost'     => ['a.cost'],
+        'verified' => ['a.verified_date'], // never verified (empty) comes first when ascending
+    ];
+    private const DEFAULT_SORT = 'asset';
+
+    /** @return array{0:string, 1:string} the sort column key and 'asc'|'desc' */
+    private function sortState(Request $req): array
+    {
+        $key = (string) $req->query('sort');
+        return [isset(self::SORTS[$key]) ? $key : self::DEFAULT_SORT, $req->query('dir') === 'desc' ? 'desc' : 'asc'];
+    }
+
+    /** The ?sort= and ?dir= values to put in links: nothing for the default order. */
+    private function sortParams(string $key, string $dir): array
+    {
+        return ['sort' => $key === self::DEFAULT_SORT ? null : $key, 'dir' => $dir === 'desc' ? 'desc' : null];
+    }
+
+    /** The list view to return to: search text, page, status filter and sort (see Module::listState). */
     protected function rememberList(Request $req): void
     {
         $status = $this->statusFilter($req);
+        [$sort, $dir] = $this->sortState($req);
         $this->listQs = $this->listState(
             mb_substr(trim((string) $req->query('q')), 0, 64),
             max(1, (int) $req->query('page', '1')),
-            ['status' => $status === 'active' ? null : $status]
+            ['status' => $status === 'active' ? null : $status] + $this->sortParams($sort, $dir)
         );
     }
 
@@ -183,10 +213,12 @@ final class AssetsModule extends Module
         $page = max(1, (int) $req->query('page', '1'));
         $status = $this->statusFilter($req);
         $statusParam = $status === 'active' ? null : $status;
+        [$sort, $dir] = $this->sortState($req);
+        $sortParams = $this->sortParams($sort, $dir);
 
         // An empty search is just the plain list: keep the address bar tidy ("/assets", not "/assets?q=").
         if ($req->query('q') !== null && $search === '') {
-            $this->redirect('/assets' . $this->listState('', $page, ['status' => $statusParam]));
+            $this->redirect('/assets' . $this->listState('', $page, ['status' => $statusParam] + $sortParams));
         }
 
         [$where, $params] = $this->listWhere($search, $status);
@@ -195,7 +227,15 @@ final class AssetsModule extends Module
         $pages = max(1, (int) ceil($total / self::PER_PAGE));
         $page = min($page, $pages);
         $offset = ($page - 1) * self::PER_PAGE; // ints only: safe to inline
-        $this->listQs = $this->listState($search, $page, ['status' => $statusParam]);
+        $this->listQs = $this->listState($search, $page, ['status' => $statusParam] + $sortParams);
+
+        // The chosen column in the chosen direction, then asset number so rows with equal values keep a stable
+        // order (and do not shuffle between pages).
+        $direction = strtoupper($dir);
+        $order = implode(', ', [
+            ...array_map(static fn(string $c): string => "{$c} {$direction}", self::SORTS[$sort]),
+            'a.asset_number ASC', 'a.asset_id ASC',
+        ]);
 
         $retirement = $this->retirementReady();
         // A paperclip with a count beside assets that have attachments (only once that table exists).
@@ -209,7 +249,7 @@ final class AssetsModule extends Module
                LEFT JOIN departments d ON d.department_id = a.department_id
                LEFT JOIN buildings b ON b.building_id = a.building_id
               WHERE {$where}
-              ORDER BY a.asset_number
+              ORDER BY {$order}
               LIMIT " . self::PER_PAGE . " OFFSET {$offset}",
             $params
         );
@@ -223,6 +263,8 @@ final class AssetsModule extends Module
             'pages'      => $pages,
             'total'      => $total,
             'status'     => $status,
+            'sort'       => $sort,
+            'dir'        => $dir,
             'showStatus' => $retirement,
             'canAdd'     => $canWriteAny,
             'canBulk'    => $canWriteAny && $retirement,
