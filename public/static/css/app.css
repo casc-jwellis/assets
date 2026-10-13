@@ -318,6 +318,8 @@ input:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color:
 /* Form pages: header, alerts and cards share one column, so header buttons line up with the cards. */
 .narrow-col { max-width: 760px; }
 .narrow-col .form-card { max-width: none; }
+/* Full-width form pages (Theme, Email): the same width as the list pages; cards fill it. */
+.wide-col .form-card { max-width: none; }
 .form-card h2 { margin-bottom: 14px; }
 .form-card > p { margin-bottom: 14px; }
 .form-card .card-head { margin: -20px -20px 14px; }

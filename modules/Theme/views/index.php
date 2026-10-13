@@ -9,7 +9,7 @@
 $modes = ['light' => 'Light mode', 'dark' => 'Dark mode'];
 $selected = $v['palette'];
 ?>
-<div class="narrow-col" data-theme-page data-min-contrast="<?= e($minContrast) ?>"
+<div class="wide-col" data-theme-page data-min-contrast="<?= e($minContrast) ?>"
      data-palettes="<?= e(json_encode($palettes, JSON_UNESCAPED_SLASHES)) ?>">
 <div class="page-head">
     <div>

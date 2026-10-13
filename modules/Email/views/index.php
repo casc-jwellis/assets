@@ -5,7 +5,7 @@
  */
 $statusClass = ['sent' => 'badge-ok', 'failed' => 'badge-danger', 'unknown' => 'badge-warn'];
 ?>
-<div class="narrow-col" data-email-page>
+<div class="wide-col" data-email-page>
 <div class="page-head">
     <div>
         <h1>Email</h1>
