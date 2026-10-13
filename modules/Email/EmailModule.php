@@ -147,10 +147,16 @@ final class EmailModule extends Module
         }
         $hasPassword = ($password !== '' || ($old['has_password'] && !$clearPassword));
 
+        // A username needs a password: the one just typed, or the one already saved (a blank box keeps it).
+        if ($v['username'] !== '' && !$hasPassword) {
+            $errors[] = 'Enter the password for that username, or clear the username if the server needs no login.';
+        }
+
         // Let the library check the combination (SSL/TLS on port 587, a bad host name, ...): it explains itself.
+        // A saved password counts as "a password" here; the real value is only read when mail is actually sent.
         if ($errors === [] && $v['host'] !== '') {
             try {
-                $n->mailer($v + ['from_address' => $v['from_address']], $password !== '' ? $password : null);
+                $n->mailer($v + ['from_address' => $v['from_address']], $password !== '' ? $password : ($hasPassword ? 'saved-password' : null));
             } catch (TehsmtpException $e) {
                 $errors[] = trim((string) preg_replace('/\s+/', ' ', $e->getMessage()));
             }
@@ -234,6 +240,7 @@ final class EmailModule extends Module
             }
         }
         $me = $this->app->auth->user();
+        $v['password_ok'] ??= $ready ? $n->config()['password_ok'] : true;
         return $this->render('index', [
             'title'     => 'Email',
             'ready'     => $ready,

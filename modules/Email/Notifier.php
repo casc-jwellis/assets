@@ -55,7 +55,7 @@ final class Notifier
      * The mail settings with defaults. The password is NOT included: use password().
      *
      * @return array{enabled:bool, events:list<string>, recipients:list<string>, host:string, port:?int, security:string,
-     *               username:string, from_address:string, from_name:string, base_url:string, has_password:bool}
+     *               username:string, from_address:string, from_name:string, base_url:string, has_password:bool, password_ok:bool}
      */
     public function config(): array
     {
@@ -75,6 +75,8 @@ final class Notifier
             'from_name'    => (string) $s->get('mail.from_name', ''),
             'base_url'     => (string) $s->get('mail.base_url', ''),
             'has_password' => $s->get('mail.password') !== null && $s->get('mail.password') !== '',
+            // false when a password is saved but cannot be read back (the key file storage/secret.key is gone)
+            'password_ok'  => $s->get('mail.password') === null || $s->get('mail.password') === '' || $this->password() !== null,
         ];
     }
 

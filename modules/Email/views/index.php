@@ -22,6 +22,9 @@ $statusClass = ['sent' => 'badge-ok', 'failed' => 'badge-danger', 'unknown' => '
 <?php foreach ($errors as $err): ?>
     <div class="alert alert-danger" role="alert"><?= e($err) ?></div>
 <?php endforeach; ?>
+<?php if ($ready && $v['has_password'] && !$v['password_ok']): ?>
+    <div class="alert alert-warning" role="status">The saved password cannot be read (the key file <code>storage/secret.key</code> is missing or was replaced). Enter the password again and save.</div>
+<?php endif; ?>
 <?php if ($ready && !$canStore): ?>
     <div class="alert alert-warning" role="status">The PHP <code>openssl</code> extension is not available, so a password cannot be stored and encrypted mail cannot be used.</div>
 <?php endif; ?>
