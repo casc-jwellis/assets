@@ -1,6 +1,6 @@
 <?php
 /** Main application shell: sidebar navigation + top bar. Expects $content, $title. */
-$appName = (string) app()->config->get('app.name', 'Asset Manager');
+$appName = app_name();
 $user = current_user();
 $flashes = app()->session->pullFlashes();
 ?>

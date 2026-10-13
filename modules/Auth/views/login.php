@@ -2,7 +2,7 @@
 <div class="card auth-card">
     <div class="auth-brand">
         <span class="brand-mark"><?= icon('box', 22) ?></span>
-        <h1><?= e(app()->config->get('app.name', 'Asset Manager')) ?></h1>
+        <h1><?= e(app_name()) ?></h1>
         <p class="muted">Sign in to continue</p>
     </div>
 

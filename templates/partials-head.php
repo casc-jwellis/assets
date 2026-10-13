@@ -1,6 +1,8 @@
 <?php
 /** Shared <head> contents. Expects $title (string|null). */
-$appName = (string) app()->config->get('app.name', 'Asset Manager');
+$appName = app_name();
+// Colours chosen on the Theme page come as one small stylesheet after the built-in one (also on the login page).
+$themeVersion = app()->module('Theme') !== null ? app()->settings->get('theme.version') : null;
 ?>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -22,4 +24,7 @@ $appName = (string) app()->config->get('app.name', 'Asset Manager');
 </script>
 <link rel="icon" type="image/svg+xml" href="<?= e(asset('favicon.svg')) ?>">
 <link rel="stylesheet" href="<?= e(asset('css/app.css')) ?>">
+<?php if ($themeVersion !== null && $themeVersion !== ''): ?>
+<link rel="stylesheet" href="<?= e(url('/theme/css') . '?v=' . rawurlencode($themeVersion)) ?>">
+<?php endif; ?>
 <script src="<?= e(asset('js/app.js')) ?>" defer></script>

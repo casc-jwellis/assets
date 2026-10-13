@@ -51,6 +51,13 @@ function icon(string $name, int $size = 18): string
     return Icons::svg($name, $size);
 }
 
+/** The site name: what an administrator set on the Theme page, else the name entered during setup. */
+function app_name(): string
+{
+    $name = app()->settings->get('site.name');
+    return $name !== null && $name !== '' ? $name : (string) app()->config->get('app.name', 'Asset Manager');
+}
+
 function current_user(): ?array
 {
     return app()->auth->user();

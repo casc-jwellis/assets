@@ -17,6 +17,7 @@ final class App
     public readonly Session $session;
     public readonly Csrf $csrf;
     public readonly Database $db;
+    public readonly Settings $settings;
     public readonly Auth $auth;
     public readonly View $view;
     public readonly Router $router;
@@ -36,6 +37,7 @@ final class App
         $this->session = new Session($this->config, $this->request);
         $this->csrf = new Csrf($this->session);
         $this->db = new Database($this->config);
+        $this->settings = new Settings($this->db);
         $this->auth = new Auth($this->db, $this->session, $this->config, $this->csrf);
         $this->view = new View();
         $this->router = new Router();

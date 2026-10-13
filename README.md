@@ -45,6 +45,16 @@ checking access). **A database dump does not contain them: back up `storage/atta
 Thumbnails are made when PHP's GD extension is installed (`php-gd`); without it the full image is shown instead.
 To remove the feature, delete `modules/Attachments`.
 
+### Theme
+
+**Theme** in the sidebar (administrators only) changes the site name and the colours for everyone, including the
+sign-in page. Pick one of the ten ready-made palettes (each has a light and a dark version) or adjust the five colours
+yourself (accent, page background, cards, sidebar and text, per mode); a live preview shows both modes before you
+save. Everything else (hover, borders, muted text, tints) is derived from those five, and a combination whose text or
+accent colour would be hard to read (contrast below 4.5:1) is refused. The settings live in the `settings` table
+(migration `015`); the colours reach the pages as a small generated stylesheet at `/theme/css`. The name set here
+replaces the one entered during setup. To remove the feature, delete `modules/Theme`.
+
 ### Migrations
 
 `migrations/*.sql` are applied once each, in filename order, and recorded in a `schema_migrations` table.
