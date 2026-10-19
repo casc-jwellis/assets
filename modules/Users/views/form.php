@@ -141,9 +141,16 @@ $never = $user === null || $user['lastlogin'] === null || str_starts_with((strin
         <div class="card-head"><h2>Department access</h2></div>
         <p class="muted small perm-note">Controls which departments' assets this person can see (Read) and change (Read &amp; write). Administrators can access every department regardless.</p>
         <div class="table-wrap">
-            <table class="table perm-table">
+            <table class="table perm-table" data-perm-table>
                 <thead><tr><th>Department</th><th class="center">None</th><th class="center">Read</th><th class="center">Read &amp; write</th></tr></thead>
                 <tbody>
+                <?php /* Shown by app.js (it needs the script to do anything); the radios have no name, so they are never submitted. */ ?>
+                <tr class="perm-all" data-perm-all hidden>
+                    <td><strong>All departments</strong></td>
+                    <?php foreach (['' => 'No access to', 'r' => 'Read access to', 'rw' => 'Read and write access to'] as $lv => $what): ?>
+                        <td class="center"><input type="radio" data-perm-all-level="<?= e($lv) ?>" aria-label="<?= e($what) ?> every department"></td>
+                    <?php endforeach; ?>
+                </tr>
                 <?php foreach ($departments as $d): ?>
                     <?php $id = (int) $d['department_id']; $level = $perms[$id] ?? ''; ?>
                     <tr>

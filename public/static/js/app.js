@@ -151,6 +151,37 @@
         });
     });
 
+    // ----- Department access: an "All departments" row that sets None / Read / Read & write for every row -----
+    // <table data-perm-table> holding radios named perm[...] and a hidden <tr data-perm-all> whose unnamed radios
+    // carry data-perm-all-level="" | "r" | "rw". The row stays hidden (the form still works) without this script.
+    document.querySelectorAll('[data-perm-table]').forEach(function (table) {
+        var allRow = table.querySelector('[data-perm-all]');
+        if (!allRow) { return; }
+        var masters = allRow.querySelectorAll('input[data-perm-all-level]');
+        var rows = function () { return table.querySelectorAll('input[type="radio"][name^="perm["]'); };
+
+        // The master radio is ticked only while every department has the same level.
+        function sync() {
+            var levels = {};
+            rows().forEach(function (r) { if (r.checked) { levels[r.value] = true; } });
+            var keys = Object.keys(levels);
+            masters.forEach(function (m) { m.checked = keys.length === 1 && m.getAttribute('data-perm-all-level') === keys[0]; });
+        }
+
+        masters.forEach(function (m) {
+            m.addEventListener('change', function () {
+                var level = m.getAttribute('data-perm-all-level');
+                rows().forEach(function (r) { r.checked = r.value === level; });
+                sync();
+            });
+        });
+        table.addEventListener('change', function (ev) {
+            if (ev.target.name && ev.target.name.indexOf('perm[') === 0) { sync(); }
+        });
+        allRow.hidden = false;
+        sync();
+    });
+
     // ----- Mobile sidebar -----
     var body = document.body;
     document.querySelectorAll('[data-nav-toggle]').forEach(function (btn) {

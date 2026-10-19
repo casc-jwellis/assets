@@ -540,3 +540,6 @@ code { font-size: .88em; background: var(--surface-2); padding: 1px 5px; border-
 /* The one-time temporary password after creating a user */
 .temp-password { margin: 12px 0 0; }
 .temp-password code { font-size: 1.4rem; letter-spacing: .06em; padding: 10px 14px; user-select: all; }
+
+.perm-all td { background: var(--surface-2); }
+.perm-all[hidden] { display: none; }

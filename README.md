@@ -109,7 +109,7 @@ the notifications switch. The first time the new user signs in, every page excep
 sends them to choosing their own; the temporary password cannot be reused. If the email cannot be sent (mail not set up,
 or the server refuses), the user is still created and the temporary password is shown to you **once**, on that page, so you
 can pass it on. It is never stored in readable form, never put in the email log, and not shown again. You can still set
-a password by hand when editing a user; that does not force a change. Needs migration `017` (until it is applied the
+a password by hand when editing a user; that does not force a change. The Department access table has an **All departments** row to set None, Read or Read & write for every department at once. Needs migration `017` (until it is applied the
 page keeps its old password boxes).
 ### Migrations
 
