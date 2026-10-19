@@ -55,19 +55,23 @@ accent colour would be hard to read (contrast below 4.5:1) is refused. The setti
 (migration `015`); the colours reach the pages as a small generated stylesheet at `/theme/css`. The name set here
 replaces the one entered during setup. To remove the feature, delete `modules/Theme`.
 
-### Departments and asset types
+### Reference data (departments, buildings, asset types)
 
-**Departments & types** in the sidebar (administrators only) adds, renames and deletes the lists assets are sorted into.
-A page shows each department and type with how many assets, users and access entries use it.
+**Reference data** in the sidebar (administrators only) adds, renames and deletes the lists assets are sorted into:
+departments, buildings and asset types. Each list shows how many assets (and, for departments, users) use every entry.
 
 - **Renaming a department's abbreviation** also updates the transfer history, because the history records departments by
   abbreviation text; it all happens in one transaction, so a failure changes nothing.
+- **Renaming a building's abbreviation** does not touch the history: it records locations as text such as `MAIN101`
+  (abbreviation plus room), which cannot be rewritten safely, so past entries keep the old abbreviation as a record of
+  where the asset was at the time.
 - **`RETIRE` is a system department**: retiring and restoring assets is recorded against it, so it cannot be edited or
   deleted, and no other department may use that abbreviation.
 - **Deleting** is only possible when nothing depends on it: no assets in or bought by a department, no users with it as their
-  home department, and no assets of a type. The delete page says what is in the way. Deleting a department that only has
-  access entries and history removes the access entries; the history keeps its text.
-- Abbreviations are up to 6 letters, digits, hyphens or underscores and are saved in capitals; names must be unique.
+  home department, no assets in a building, and no assets of a type. The delete page says what is in the way. Deleting a
+  department that only has access entries and history removes the access entries; the history keeps its text.
+- Abbreviations are letters, digits, hyphens or underscores (up to 6 for a department, 4 for a building) and are saved in
+  capitals; names must be unique within their list.
 
 ### Email notifications
 

@@ -1,11 +1,11 @@
 <?php
-/** Overview. Expects $departments (with assets, users, access, locked) and $types (with assets). */
+/** Overview. Expects $departments (with assets, users, access, locked), $buildings (with assets) and $types (with assets). */
 $plural = static fn(int $n, string $word): string => number_format($n) . ' ' . $word . ($n === 1 ? '' : 's');
 ?>
 <div class="page-head">
     <div>
-        <h1>Departments &amp; types</h1>
-        <p class="muted">The lists that assets are sorted into. Changes show up everywhere straight away.</p>
+        <h1>Reference data</h1>
+        <p class="muted">The departments, buildings and asset types that assets are sorted into. Changes show up everywhere straight away.</p>
     </div>
 </div>
 
@@ -34,6 +34,31 @@ $plural = static fn(int $n, string $word): string => number_format($n) . ' ' . $
                         <td class="num"><?= e(number_format($d['assets'])) ?></td>
                         <td class="num"><?= e(number_format($d['users'])) ?></td>
                         <td class="num"><?= e(number_format($d['access'])) ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    <?php endif; ?>
+</div>
+
+<div class="card section">
+    <div class="card-head">
+        <h2>Buildings <span class="muted">(<?= e(count($buildings)) ?>)</span></h2>
+        <a class="btn btn-primary" href="<?= e(url('/lists/buildings/new')) ?>">Add building</a>
+    </div>
+    <?php if ($buildings === []): ?>
+        <p class="empty">No buildings yet.</p>
+    <?php else: ?>
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Abbreviation</th><th>Name</th><th class="num">Assets</th></tr></thead>
+                <tbody>
+                <?php foreach ($buildings as $b): ?>
+                    <tr>
+                        <td class="nowrap"><span class="badge"><?= e($b['abbr']) ?></span></td>
+                        <td><a href="<?= e(url('/lists/buildings/' . (int) $b['building_id'])) ?>"><?= e($b['name']) ?></a></td>
+                        <td class="num"><?= e(number_format($b['assets'])) ?></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>

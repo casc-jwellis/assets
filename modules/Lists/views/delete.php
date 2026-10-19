@@ -1,14 +1,13 @@
 <?php
-/** Confirm deleting a department or type. Expects $kind, $meta (one, One), $row, $use (blockers, notes, counts). */
-$isDept = $kind === 'departments';
-$label = $isDept ? $row['abbr'] . ' · ' . $row['name'] : $row['name'];
-$id = (int) $row[$isDept ? 'department_id' : 'type_id'];
+/** Confirm deleting a department, building or type. Expects $kind, $meta (one, One, pk), $hasAbbr, $row, $use (blockers, notes, counts). */
+$label = $hasAbbr ? $row['abbr'] . ' · ' . $row['name'] : $row['name'];
+$id = (int) $row[$meta['pk']];
 $back = url('/lists/' . $kind . '/' . $id);
 ?>
 <div class="narrow-col">
 <div class="page-head">
     <div>
-        <a class="back-link" href="<?= e($back) ?>">&larr; Back to <?= e($isDept ? $row['abbr'] : $row['name']) ?></a>
+        <a class="back-link" href="<?= e($back) ?>">&larr; Back to <?= e($hasAbbr ? $row['abbr'] : $row['name']) ?></a>
         <h1>Delete <?= e($meta['one']) ?></h1>
     </div>
 </div>

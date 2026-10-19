@@ -1,17 +1,19 @@
 <?php
 /**
- * Add / edit a department or an asset type. Expects $kind ('departments'|'types'), $meta (one, One), $isNew,
- * $row (existing row or null), $v (field values), $errors, $use (usage summary or null), $nameMax, $abbrMax, $yearsMax.
+ * Add / edit a department, building or asset type. Expects $kind ('departments'|'buildings'|'types'), $meta (one, One,
+ * abbr_max, cascade), $hasAbbr, $isNew, $row (existing row or null), $v (field values), $errors, $use (usage summary or
+ * null), $nameMax, $yearsMax.
  */
-$isDept = $kind === 'departments';
-$action = $isNew ? url('/lists/' . $kind . '/new') : url('/lists/' . $kind . '/' . (int) $row[$isDept ? 'department_id' : 'type_id']);
+$pk = $meta['pk'];
+$action = $isNew ? url('/lists/' . $kind . '/new') : url('/lists/' . $kind . '/' . (int) $row[$pk]);
 $counts = $use['counts'] ?? [];
+$plural = static fn(int $n, string $word, string $many = ''): string => number_format($n) . ' ' . ($n === 1 ? $word : ($many !== '' ? $many : $word . 's'));
 ?>
 <div class="narrow-col">
 <div class="page-head">
     <div>
-        <a class="back-link" href="<?= e(url('/lists')) ?>">&larr; Departments &amp; types</a>
-        <h1><?= $isNew ? 'Add ' . e($meta['one']) : e($isDept ? $row['abbr'] . ' · ' . $row['name'] : $row['name']) ?></h1>
+        <a class="back-link" href="<?= e(url('/lists')) ?>">&larr; Reference data</a>
+        <h1><?= $isNew ? 'Add ' . e($meta['one']) : e($hasAbbr ? $row['abbr'] . ' · ' . $row['name'] : $row['name']) ?></h1>
     </div>
     <?php if (!$isNew): ?>
         <div class="page-actions">
@@ -28,13 +30,15 @@ $counts = $use['counts'] ?? [];
     <?= csrf_field() ?>
     <div class="card form-card wide">
         <h2><?= $isNew ? 'New ' . e($meta['one']) : e($meta['One']) ?></h2>
-        <?php if ($isDept): ?>
+        <?php if ($hasAbbr): ?>
             <div class="field">
                 <label for="abbr">Abbreviation</label>
-                <input type="text" id="abbr" name="abbr" value="<?= e($v['abbr']) ?>" maxlength="<?= e($abbrMax) ?>" required autocapitalize="characters" spellcheck="false">
-                <small class="muted">Up to <?= e($abbrMax) ?> letters, digits, hyphens or underscores. Shown in lists and recorded in transfer history. Always saved in capitals.</small>
-                <?php if (!$isNew && ($counts['history'] ?? 0) > 0): ?>
-                    <small class="muted">If you change it, the <?= e(number_format($counts['history'])) ?> transfer history entr<?= $counts['history'] === 1 ? 'y' : 'ies' ?> that mention <strong><?= e($row['abbr']) ?></strong> are updated to the new abbreviation, so the history stays attached to this department.</small>
+                <input type="text" id="abbr" name="abbr" value="<?= e($v['abbr']) ?>" maxlength="<?= e($meta['abbr_max']) ?>" required autocapitalize="characters" spellcheck="false">
+                <small class="muted">Up to <?= e($meta['abbr_max']) ?> letters, digits, hyphens or underscores. Shown in lists<?= $kind === 'departments' ? ' and recorded in transfer history' : ', and the start of each location in transfer history (for example MAIN101)' ?>. Always saved in capitals.</small>
+                <?php if (!$isNew && $meta['cascade'] && ($counts['history'] ?? 0) > 0): ?>
+                    <small class="muted">If you change it, the <?= e($plural($counts['history'], 'transfer history entry', 'transfer history entries')) ?> that mention <strong><?= e($row['abbr']) ?></strong> are updated to the new abbreviation, so the history stays attached to this department.</small>
+                <?php elseif (!$isNew && !$meta['cascade']): ?>
+                    <small class="muted">If you change it, past transfer history keeps the old abbreviation: it records where the asset was at the time.</small>
                 <?php endif; ?>
             </div>
         <?php endif; ?>
@@ -42,7 +46,7 @@ $counts = $use['counts'] ?? [];
             <label for="name">Name</label>
             <input type="text" id="name" name="name" value="<?= e($v['name']) ?>" maxlength="<?= e($nameMax) ?>" required>
         </div>
-        <?php if (!$isDept): ?>
+        <?php if ($kind === 'types'): ?>
             <div class="field">
                 <label for="years">Depreciation (years)</label>
                 <input type="text" id="years" name="years" inputmode="numeric" value="<?= e($v['years']) ?>" maxlength="3" required>
@@ -55,12 +59,14 @@ $counts = $use['counts'] ?? [];
         <div class="card form-card wide section">
             <h2>In use</h2>
             <ul class="usage-list">
-                <?php if ($isDept): ?>
+                <?php if ($kind === 'departments'): ?>
                     <li><strong><?= e(number_format($counts['assets'])) ?></strong> asset<?= $counts['assets'] === 1 ? '' : 's' ?> in this department</li>
                     <li><strong><?= e(number_format($counts['bought'])) ?></strong> asset<?= $counts['bought'] === 1 ? '' : 's' ?> bought by it</li>
                     <li><strong><?= e(number_format($counts['users'])) ?></strong> user<?= $counts['users'] === 1 ? '' : 's' ?> with it as their home department</li>
                     <li><strong><?= e(number_format($counts['access'])) ?></strong> user<?= $counts['access'] === 1 ? '' : 's' ?> with department access</li>
                     <li><strong><?= e(number_format($counts['history'])) ?></strong> transfer history entr<?= $counts['history'] === 1 ? 'y' : 'ies' ?></li>
+                <?php elseif ($kind === 'buildings'): ?>
+                    <li><strong><?= e(number_format($counts['assets'])) ?></strong> asset<?= $counts['assets'] === 1 ? '' : 's' ?> in this building</li>
                 <?php else: ?>
                     <li><strong><?= e(number_format($counts['assets'])) ?></strong> asset<?= $counts['assets'] === 1 ? '' : 's' ?> of this type</li>
                 <?php endif; ?>
