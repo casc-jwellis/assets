@@ -79,4 +79,23 @@ $plural = static fn(int $n, string $word, string $many = ''): string => number_f
         <a class="btn" href="<?= e(url('/lists') . '?tab=' . $kind) ?>">Cancel</a>
     </div>
 </form>
+
+<?php if (!empty($mergeTargets)): ?>
+    <form method="get" action="<?= e($action . '/merge') ?>" class="card form-card section" autocomplete="off">
+        <h2>Merge into another department</h2>
+        <p class="muted small">Use this when two departments should be one. Everything in <strong><?= e($row['abbr']) ?></strong> (its assets, purchases,
+            users, department access and transfer history) moves to the department you pick, then <strong><?= e($row['abbr']) ?></strong> is deleted.
+            You will see exactly what moves before anything changes.</p>
+        <div class="field">
+            <label for="merge-into">Keep this department</label>
+            <select id="merge-into" name="into" required>
+                <option value="">Choose a department…</option>
+                <?php foreach ($mergeTargets as $m): ?>
+                    <option value="<?= e($m['department_id']) ?>"><?= e($m['abbr']) ?> — <?= e($m['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <button type="submit" class="btn">Review the merge</button>
+    </form>
+<?php endif; ?>
 </div>

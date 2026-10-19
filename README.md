@@ -67,6 +67,10 @@ returns you to the same tab.
 - **Renaming a building's abbreviation** does not touch the history: it records locations as text such as `MAIN101`
   (abbreviation plus room), which cannot be rewritten safely, so past entries keep the old abbreviation as a record of
   where the asset was at the time.
+- **Merging two departments** (the **Merge into another department** card on a department's page) moves everything to the
+  department you keep, then deletes the other: its assets, the assets it bought, users with it as their home department, and
+  department access (a user with access to both keeps the higher level). The transfer history is pointed at the surviving
+  department. A review page shows exactly what moves first; the merge is one transaction.
 - **`RETIRE` is a system department**: retiring and restoring assets is recorded against it, so it cannot be edited or
   deleted, and no other department may use that abbreviation.
 - **Deleting** is only possible when nothing depends on it: no assets in or bought by a department, no users with it as their

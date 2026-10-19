@@ -56,6 +56,9 @@ final class ListsModule extends Module
         $router->post("/lists/{$k}/{id:\\d+}", [$this, 'update'], $admin);
         $router->get("/lists/{$k}/{id:\\d+}/delete", [$this, 'showDelete'], $admin);
         $router->post("/lists/{$k}/{id:\\d+}/delete", [$this, 'delete'], $admin);
+        // Only departments can be merged.
+        $router->get('/lists/departments/{id:\\d+}/merge', [$this, 'showMerge'], $admin);
+        $router->post('/lists/departments/{id:\\d+}/merge', [$this, 'merge'], $admin);
     }
 
     public function nav(): array
@@ -282,6 +285,127 @@ final class ListsModule extends Module
         $this->redirect($this->listPath($kind));
     }
 
+    // ------------------------------------------------------------ merge two departments
+
+    /** Step 1: show exactly what merging this department into another would move. Nothing is written. */
+    public function showMerge(Request $req, array $params): string
+    {
+        [$source, $target] = $this->mergePair((int) $params['id'], (int) $req->query('into'));
+        return $this->render('merge', [
+            'title'  => 'Merge departments',
+            'source' => $source,
+            'target' => $target,
+            'counts' => $this->mergeCounts($source, $target),
+        ]);
+    }
+
+    /**
+     * Step 2: move everything the department owns to the one being kept, then delete it. One transaction: either
+     * all of it happens or none of it.
+     */
+    public function merge(Request $req, array $params): never
+    {
+        $fromId = (int) $params['id'];
+        $toId = (int) $req->post('into');
+        [$source, $target] = $this->mergePair($fromId, $toId);
+
+        if ($req->post('ack') !== '1') {
+            $this->app->session->flash('danger', 'Tick the box to confirm you have a backup and want these departments merged.');
+            $this->redirect('/lists/departments/' . $fromId . '/merge?into=' . $toId);
+        }
+
+        $db = $this->app->db;
+        $pdo = $db->pdo();
+        $counts = $this->mergeCounts($source, $target);
+        $pdo->beginTransaction();
+        try {
+            $db->execute('UPDATE assets SET department_id = ? WHERE department_id = ?', [$toId, $fromId]);
+            $db->execute('UPDATE assets SET purchaser_id = ? WHERE purchaser_id = ?', [$toId, $fromId]);
+            $db->execute('UPDATE users SET department_id = ? WHERE department_id = ?', [$toId, $fromId]);
+
+            // Department access: carry it over, and where a user has both keep the higher level ('rw' beats 'r').
+            foreach ($db->all('SELECT user_id, permission FROM permissions WHERE department_id = ?', [$fromId]) as $p) {
+                $have = $db->value('SELECT permission FROM permissions WHERE user_id = ? AND department_id = ?', [$p['user_id'], $toId]);
+                if ($have === null) {
+                    $db->execute('INSERT INTO permissions (user_id, department_id, permission) VALUES (?, ?, ?)', [$p['user_id'], $toId, $p['permission']]);
+                } elseif ($p['permission'] === 'rw' && $have !== 'rw') {
+                    $db->execute('UPDATE permissions SET permission = ? WHERE user_id = ? AND department_id = ?', ['rw', $p['user_id'], $toId]);
+                }
+            }
+            $db->execute('DELETE FROM permissions WHERE department_id = ?', [$fromId]);
+
+            // The history names a department by abbreviation text: point it at the department that is kept.
+            $db->execute('UPDATE transfers SET department_from = ? WHERE department_from = ?', [$target['abbr'], $source['abbr']]);
+            $db->execute('UPDATE transfers SET department_to = ? WHERE department_to = ?', [$target['abbr'], $source['abbr']]);
+
+            $db->execute('DELETE FROM departments WHERE department_id = ?', [$fromId]);
+            $pdo->commit();
+        } catch (\PDOException $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            error_log('department merge failed: ' . $e->getMessage());
+            $this->app->session->flash('danger', 'The departments could not be merged because of a database error. Nothing was changed.');
+            $this->redirect('/lists/departments/' . $fromId);
+        }
+
+        $parts = [];
+        foreach ([['assets', 'asset'], ['bought', 'purchase'], ['users', 'user'], ['access', 'access entr']] as [$key, $word]) {
+            $n = $counts[$key];
+            if ($n > 0) {
+                $parts[] = number_format($n) . ' ' . ($key === 'access' ? ($n === 1 ? 'access entry' : 'access entries') : $word . ($n === 1 ? '' : 's'));
+            }
+        }
+        $this->app->session->flash('success', 'Merged "' . $source['abbr'] . '" into "' . $target['abbr'] . '"'
+            . ($parts !== [] ? ' (moved ' . implode(', ', $parts) . ')' : '') . '. "' . $source['abbr'] . '" was deleted.');
+        $this->redirect($this->listPath('departments'));
+    }
+
+    /**
+     * Validate a merge request. Returns [the department that will go, the one that is kept]; otherwise explains why not
+     * and goes back to the department's page.
+     *
+     * @return array{0: array<string,mixed>, 1: array<string,mixed>}
+     */
+    private function mergePair(int $fromId, int $toId): array
+    {
+        $source = $this->find('departments', $fromId);
+        $this->refuseReserved('departments', $source);
+        $back = '/lists/departments/' . $fromId;
+        $stop = function (string $message) use ($back): never {
+            $this->app->session->flash('danger', $message);
+            $this->redirect($back);
+        };
+
+        $target = $toId > 0 ? $this->app->db->one('SELECT * FROM departments WHERE department_id = ?', [$toId]) : null;
+        if ($target === null || $this->isReserved('departments', $target)) {
+            $stop('Choose the department to keep.');
+        }
+        if ($fromId === $toId) {
+            $stop('Choose a different department to keep.');
+        }
+        return [$source, $target];
+    }
+
+    /** @return array{assets:int, bought:int, users:int, access:int, shared:int, raised:int, history:int} what a merge would move */
+    private function mergeCounts(array $source, array $target): array
+    {
+        $db = $this->app->db;
+        $s = $source['department_id'];
+        $t = $target['department_id'];
+        return [
+            'assets'  => (int) $db->value('SELECT COUNT(*) FROM assets WHERE department_id = ?', [$s]),
+            'bought'  => (int) $db->value('SELECT COUNT(*) FROM assets WHERE purchaser_id = ?', [$s]),
+            'users'   => (int) $db->value('SELECT COUNT(*) FROM users WHERE department_id = ?', [$s]),
+            'access'  => (int) $db->value('SELECT COUNT(*) FROM permissions WHERE department_id = ?', [$s]),
+            // users who already have access to the department that is kept (their two entries become one)
+            'shared'  => (int) $db->value('SELECT COUNT(*) FROM permissions ps JOIN permissions pt ON pt.user_id = ps.user_id AND pt.department_id = ? WHERE ps.department_id = ?', [$t, $s]),
+            // ...and of those, the ones whose level goes up because the merged-in department gave more
+            'raised'  => (int) $db->value("SELECT COUNT(*) FROM permissions ps JOIN permissions pt ON pt.user_id = ps.user_id AND pt.department_id = ? WHERE ps.department_id = ? AND ps.permission = 'rw' AND pt.permission <> 'rw'", [$t, $s]),
+            'history' => (int) $db->value('SELECT COUNT(*) FROM transfers WHERE department_from = ? OR department_to = ?', [$source['abbr'], $source['abbr']]),
+        ];
+    }
+
     // ------------------------------------------------------------ helpers
 
     private function kind(array $params): string
@@ -410,6 +534,10 @@ final class ListsModule extends Module
             'v'        => $values,
             'errors'   => $errors,
             'use'      => $isNew ? null : $this->usage($kind, $existing),
+            // Departments can be merged into another (never the system one): the choices for the picker.
+            'mergeTargets' => $kind === 'departments' && !$isNew
+                ? $this->app->db->all('SELECT department_id, abbr, name FROM departments WHERE department_id <> ? AND UPPER(abbr) <> ? ORDER BY abbr', [$existing['department_id'], self::RESERVED_ABBR])
+                : [],
             'nameMax'  => self::NAME_MAX,
             'yearsMax' => self::YEARS_MAX,
         ]);
