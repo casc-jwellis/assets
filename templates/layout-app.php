@@ -17,7 +17,7 @@ $flashes = app()->session->pullFlashes();
             <span><?= e($appName) ?></span>
         </a>
         <nav class="nav">
-            <?php foreach (app()->navItems() as $item): ?>
+            <?php foreach (app()->auth->mustChangePassword() ? [] : app()->navItems() as $item): /* nothing else is usable until a temporary password is replaced */ ?>
                 <a href="<?= e(url($item['path'])) ?>"
                    class="nav-link<?= is_active($item['path']) ? ' is-active' : '' ?>"
                    <?= is_active($item['path']) ? 'aria-current="page"' : '' ?>>

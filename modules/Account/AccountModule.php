@@ -15,29 +15,33 @@ final class AccountModule extends Module
 
     public function routes(Router $router): void
     {
-        $router->get('/account/password', [$this, 'showPassword']);
-        $router->post('/account/password', [$this, 'changePassword']);
+        // Reachable while a temporary password is still in force: it is the one page such a user may use.
+        $router->get('/account/password', [$this, 'showPassword'], ['pending_ok' => true]);
+        $router->post('/account/password', [$this, 'changePassword'], ['pending_ok' => true]);
     }
 
     public function showPassword(Request $req): string
     {
-        return $this->render('password', ['title' => 'Change password', 'errors' => [], 'min' => self::MIN_LENGTH]);
+        return $this->page([]);
     }
 
     public function changePassword(Request $req): string
     {
         $auth = $this->app->auth;
         $uid = (int) $auth->user()['user_id'];
+        $forced = $auth->mustChangePassword();
         $current = (string) $req->post('current');
         $new = (string) $req->post('new');
         $confirm = (string) $req->post('confirm');
 
         $errors = [];
         if (!$auth->verifyPassword($uid, $current)) {
-            $errors[] = 'Your current password is incorrect.';
+            $errors[] = 'Your ' . ($forced ? 'temporary' : 'current') . ' password is incorrect.';
         }
         if (strlen($new) < self::MIN_LENGTH) {
             $errors[] = 'The new password must be at least ' . self::MIN_LENGTH . ' characters.';
+        } elseif ($new === $current) {
+            $errors[] = 'The new password must be different from the ' . ($forced ? 'temporary' : 'current') . ' one.';
         }
         if ($new !== $confirm) {
             $errors[] = 'The new password and confirmation do not match.';
@@ -48,12 +52,25 @@ final class AccountModule extends Module
 
         if ($errors !== []) {
             http_response_code(422);
-            return $this->render('password', ['title' => 'Change password', 'errors' => $errors, 'min' => self::MIN_LENGTH]);
+            return $this->page($errors);
         }
 
+        $auth->clearMustChangePassword($uid);
         $this->app->session->regenerate();
         $this->app->csrf->rotate();
         $this->app->session->flash('success', 'Your password has been updated.');
-        $this->redirect('/account/password');
+        $this->redirect($forced ? '/' : '/account/password');
+    }
+
+    /** @param list<string> $errors */
+    private function page(array $errors): string
+    {
+        $forced = $this->app->auth->mustChangePassword();
+        return $this->render('password', [
+            'title'  => $forced ? 'Choose a new password' : 'Change password',
+            'errors' => $errors,
+            'min'    => self::MIN_LENGTH,
+            'forced' => $forced,
+        ]);
     }
 }

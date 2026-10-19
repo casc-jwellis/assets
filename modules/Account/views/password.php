@@ -1,10 +1,16 @@
-<?php /** Expects $errors (list<string>), $min (int). */ ?>
+<?php /** Expects $errors (list<string>), $min (int), $forced (bool: signed in with a temporary password). */ ?>
 <div class="page-head">
     <div>
-        <h1>Change password</h1>
+        <h1><?= $forced ? 'Choose a new password' : 'Change password' ?></h1>
         <p class="muted">Signed in as <?= e(current_user()['username']) ?></p>
     </div>
 </div>
+
+<?php if ($forced): ?>
+    <div class="alert alert-warning" role="status">
+        You signed in with a temporary password. Choose your own now; nothing else is available until you do.
+    </div>
+<?php endif; ?>
 
 <div class="card form-card">
     <?php foreach ($errors as $err): ?>
@@ -14,8 +20,9 @@
     <form method="post" action="<?= e(url('/account/password')) ?>">
         <?= csrf_field() ?>
         <div class="field">
-            <label for="current">Current password</label>
-            <input type="password" id="current" name="current" autocomplete="current-password" required>
+            <label for="current"><?= $forced ? 'Temporary password' : 'Current password' ?></label>
+            <input type="password" id="current" name="current" autocomplete="current-password" required<?= $forced ? ' autofocus' : '' ?>>
+            <?php if ($forced): ?><small class="muted">The one you were given (by email, or in person).</small><?php endif; ?>
         </div>
         <div class="field">
             <label for="new">New password</label>

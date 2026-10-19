@@ -15,7 +15,7 @@ final class AuthModule extends Module
     {
         $router->get('/login', [$this, 'showLogin'], ['public' => true]);
         $router->post('/login', [$this, 'login'], ['public' => true]);
-        $router->post('/logout', [$this, 'logout']);
+        $router->post('/logout', [$this, 'logout'], ['pending_ok' => true]);
     }
 
     public function showLogin(Request $req): string

@@ -194,6 +194,42 @@ final class Notifier
     }
 
     /**
+     * Can mail go to one person (as opposed to the notification list)? Needs only the server and the from address:
+     * the on/off switch and the event list on the Email page are about asset notifications, like the test email.
+     */
+    public function canMailPeople(): bool
+    {
+        if (!$this->ready()) {
+            return false;
+        }
+        $c = $this->config();
+        return $c['host'] !== '' && $c['from_address'] !== '' && $c['password_ok'];
+    }
+
+    /**
+     * Tell a new user how to sign in. The temporary password is in the message but never in the log or anywhere else.
+     *
+     * @param array{username:string, firstname:string, lastname:string, email:string} $user
+     * @return array{0:bool, 1:string} whether the mail server took it, and why not when it did not
+     */
+    public function sendTemporaryPassword(array $user, string $password): array
+    {
+        $c = $this->config();
+        $name = trim($user['firstname'] . ' ' . $user['lastname']);
+        $subject = '[' . app_name() . '] Your account';
+        $body = 'Hello' . ($name !== '' ? ' ' . $this->oneLine($name) : '') . ",\n\n"
+            . $this->actor() . ' created an account for you on ' . app_name() . ".\n\n"
+            . $this->pairs(['Sign in at' => $this->link('/login'), 'Username' => $user['username'], 'Temporary password' => $password])
+            . "\nThe first time you sign in you will be asked to choose your own password. Until then the temporary one is all"
+            . " that protects the account, so please sign in soon and do not share this message.\n"
+            . "\n--\nSent by " . app_name() . ". If you were not expecting this, you can ignore it.\n";
+        [$ok, $detail, $unknown] = $this->deliver($c, [$user['email']], $subject, $body);
+        // The log keeps who and when, not what: the password stays out of it.
+        $this->log('account', $subject, [$user['email']], $ok ? 'sent' : ($unknown ? 'unknown' : 'failed'), $detail);
+        return [$ok && $detail === '', $detail !== '' ? $detail : ($ok ? '' : 'The mail server did not accept it.')];
+    }
+
+    /**
      * @param list<string> $recipients
      * @return array{0:bool, 1:string, 2:bool} sent to at least one recipient, what went wrong (or ''), delivery uncertain
      */

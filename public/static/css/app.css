@@ -536,3 +536,7 @@ code { font-size: .88em; background: var(--surface-2); padding: 1px 5px; border-
 .tab.is-active { color: var(--accent); border-bottom-color: var(--accent); }
 .tab-count { margin-left: 4px; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: .78rem; font-weight: 600; }
 .tab.is-active .tab-count { background: var(--accent-soft); color: var(--accent); }
+
+/* The one-time temporary password after creating a user */
+.temp-password { margin: 12px 0 0; }
+.temp-password code { font-size: 1.4rem; letter-spacing: .06em; padding: 10px 14px; user-select: all; }

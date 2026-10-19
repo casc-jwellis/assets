@@ -78,6 +78,22 @@ final class Auth
         return $this->canDisable;
     }
 
+    /** Must this user choose a new password before doing anything else? (False until migration 017 exists.) */
+    public function mustChangePassword(): bool
+    {
+        return !empty($this->user()['must_change_password']);
+    }
+
+    /** Called once the person has chosen their own password. */
+    public function clearMustChangePassword(int $userId): void
+    {
+        try {
+            $this->db->execute('UPDATE users SET must_change_password = 0 WHERE user_id = ?', [$userId]);
+        } catch (\PDOException) {
+            // migration 017 not applied: there is no flag to clear
+        }
+    }
+
     public function check(): bool
     {
         return $this->user() !== null;

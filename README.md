@@ -100,6 +100,17 @@ address, who receives the emails (one address per line), and the public address 
   Mail is sent by the bundled library in `lib/tehsmtp/` (a pure-PHP SMTP client; nothing to install). To remove the feature,
   delete `modules/Email` (the library can stay or go).
 
+### New users and temporary passwords
+
+The **New user** page has no password box. Creating a user generates a random temporary password (14 characters, no
+look-alike letters or digits) and emails it, with the username and sign-in link, to the address you enter (the email is
+required while mail is set up). The mail only needs the server and from address on the Email page: it does not depend on
+the notifications switch. The first time the new user signs in, every page except **Change password** (and sign out)
+sends them to choosing their own; the temporary password cannot be reused. If the email cannot be sent (mail not set up,
+or the server refuses), the user is still created and the temporary password is shown to you **once**, on that page, so you
+can pass it on. It is never stored in readable form, never put in the email log, and not shown again. You can still set
+a password by hand when editing a user; that does not force a change. Needs migration `017` (until it is applied the
+page keeps its old password boxes).
 ### Migrations
 
 `migrations/*.sql` are applied once each, in filename order, and recorded in a `schema_migrations` table.
@@ -134,6 +145,8 @@ For local development: `php -S localhost:8000 -t public public/index.php`
 2. **Auth gate** — anything except the login routes redirects to `/login` when not signed in (unknown URLs included)
 3. **CSRF** — every non-GET request must carry a valid token (`csrf_field()` in forms, or `X-CSRF-Token` header)
 4. **Authorization** — routes may be flagged `['admin' => true]`
+   (Before step 3, a user still on a temporary password is redirected to the change-password page; routes flagged
+   `['pending_ok' => true]` are the exception.)
 5. Handler runs and returns the HTML
 
 ## Adding a module (new tab)

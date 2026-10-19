@@ -99,6 +99,11 @@ final class App
             Response::redirect('/login');
         }
 
+        // 1b. A temporary password must be replaced before anything else can be used.
+        if (!$public && empty($match['opts']['pending_ok']) && $this->auth->mustChangePassword()) {
+            Response::redirect('/account/password');
+        }
+
         // 2. CSRF for every state-changing request, including the login form.
         if ($req->method !== 'GET' && !$this->csrf->verify($req)) {
             // A request bigger than post_max_size arrives with an empty $_POST, which looks like a missing token.

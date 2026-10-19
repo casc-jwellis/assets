@@ -12,6 +12,7 @@ namespace App\Core;
  * Options:
  *   public => true   reachable without logging in (login page only, normally)
  *   admin  => true   only users with the admin flag
+ *   pending_ok => true   still reachable while the user must choose a new password (change-password page, sign out)
  */
 final class Router
 {

@@ -18,6 +18,12 @@ final class UsersModule extends Module
     private const ID = '\d+';
     private const MIN_PASSWORD = 10;
 
+    /** Adds users.must_change_password. From then on a new user gets a generated, emailed temporary password. */
+    private const TEMP_MIGRATION = '017_users_must_change_password.sql';
+    /** No 0/O/1/l/I: people retype this from an email. 14 characters of 54 is about 80 bits. */
+    private const TEMP_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    private const TEMP_LENGTH = 14;
+
     /** Username of the disabled stand-in for people who no longer exist (created by migration 009). */
     public const PLACEHOLDER = 'missing-user';
 
@@ -454,6 +460,10 @@ final class UsersModule extends Module
         }
         $password = (string) $req->post('password');
         $confirm = (string) $req->post('password2');
+        // A new user's password is generated and emailed (once migration 017 exists), so none is typed in.
+        $temp = $isNew && $this->tempPasswords();
+        $mail = $temp ? $this->notifier() : null;
+        $canMail = $mail !== null && $mail->canMailPeople();
 
         $departments = $this->departments();
         $deptIds = array_map('intval', array_column($departments, 'department_id'));
@@ -478,7 +488,9 @@ final class UsersModule extends Module
             $errors[] = 'First and last names can be at most 32 characters.';
         }
         if (strlen($f['email']) > 128 || ($f['email'] !== '' && !filter_var($f['email'], FILTER_VALIDATE_EMAIL))) {
-            $errors[] = 'Enter a valid email address (or leave it blank).';
+            $errors[] = 'Enter a valid email address' . ($canMail ? '.' : ' (or leave it blank).');
+        } elseif ($canMail && $f['email'] === '') {
+            $errors[] = 'Enter the email address to send the temporary password to.';
         }
         if ($f['department_id'] !== 0 && !in_array($f['department_id'], $deptIds, true)) {
             $errors[] = 'Choose a valid home department.';
@@ -486,7 +498,7 @@ final class UsersModule extends Module
         if (!in_array($f['timezone'], \DateTimeZone::listIdentifiers(), true)) {
             $errors[] = 'Choose a valid time zone.';
         }
-        if ($isNew || $password !== '') {
+        if (!$temp && ($isNew || $password !== '')) {
             if (strlen($password) < self::MIN_PASSWORD) {
                 $errors[] = 'The password must be at least ' . self::MIN_PASSWORD . ' characters.';
             } elseif ($password !== $confirm) {
@@ -506,7 +518,13 @@ final class UsersModule extends Module
 
         if ($errors === []) {
             try {
-                $this->persist($isNew, $f, $password, $perms);
+                if ($temp) {
+                    $password = $this->generatePassword();
+                }
+                $this->persist($isNew, $f, $password, $perms, $temp);
+                if ($temp) {
+                    return $this->welcome($f, $password, $canMail ? $mail : null);
+                }
                 $this->app->session->flash('success', 'User "' . $f['username'] . '" ' . ($isNew ? 'created.' : 'saved.'));
                 $this->redirect('/users' . $this->listQs);
             } catch (\RuntimeException $e) {
@@ -527,7 +545,7 @@ final class UsersModule extends Module
      * @return int the user's id (newly assigned for a new user)
      * @throws \RuntimeException if the password hash could not be stored intact
      */
-    private function persist(bool $isNew, array $f, string $password, array $perms): int
+    private function persist(bool $isNew, array $f, string $password, array $perms, bool $mustChange = false): int
     {
         $db = $this->app->db;
         $pdo = $db->pdo();
@@ -538,8 +556,9 @@ final class UsersModule extends Module
                 // user_id is auto-incremented. lastlogin is NOT NULL: the epoch means "never signed in".
                 // A hash is always supplied, so the column's weak legacy default password can never apply.
                 $db->execute(
-                    'INSERT INTO users (username, password, firstname, lastname, email, department_id, admin, timezone, lastlogin)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    'INSERT INTO users (username, password, firstname, lastname, email, department_id, admin, timezone, lastlogin'
+                    . ($mustChange ? ', must_change_password' : '') . ')
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?' . ($mustChange ? ', 1' : '') . ')',
                     [$f['username'], $hash, $f['firstname'], $f['lastname'], $f['email'],
                      $f['department_id'], (int) $f['admin'], $f['timezone'], '1970-01-01 00:00:00']
                 );
@@ -571,6 +590,53 @@ final class UsersModule extends Module
             }
             throw $e;
         }
+    }
+
+    // ---- temporary passwords for new users ----
+
+    /** Is migration 017 applied? Until it is, new users still get a password typed in by the administrator. */
+    private function tempPasswords(): bool
+    {
+        return $this->app->migrationApplied(self::TEMP_MIGRATION);
+    }
+
+    private function generatePassword(): string
+    {
+        $out = '';
+        $max = strlen(self::TEMP_ALPHABET) - 1;
+        for ($i = 0; $i < self::TEMP_LENGTH; $i++) {
+            $out .= self::TEMP_ALPHABET[random_int(0, $max)];
+        }
+        return $out;
+    }
+
+    /** The Email module's notifier, or null if that module is not installed. */
+    private function notifier(): ?object
+    {
+        $module = $this->app->module('Email');
+        return $module !== null && method_exists($module, 'notifier') ? $module->notifier() : null;
+    }
+
+    /**
+     * The new user exists. Email them the temporary password; if that cannot be done, show it to the administrator
+     * once, on this response only (never stored or put in the session), so the account is not stranded.
+     */
+    private function welcome(array $f, string $password, ?object $mail): string
+    {
+        [$sent, $why] = $mail !== null ? $mail->sendTemporaryPassword($f, $password) : [false, ''];
+        if ($sent) {
+            $this->app->session->flash('success', 'User "' . $f['username'] . '" created. A temporary password was emailed to ' . $f['email'] . '; they will choose their own when they first sign in.');
+            $this->redirect('/users' . $this->listQs);
+        }
+        return $this->render('created', [
+            'title'    => 'User created',
+            'username' => $f['username'],
+            'email'    => $f['email'],
+            'password' => $password,
+            'reason'   => $mail === null
+                ? 'Email is not set up (an administrator can do that on the Email page), so nothing was sent.'
+                : 'The email could not be sent' . ($why !== '' ? ': ' . $why : '.'),
+        ]);
     }
 
     // ---- helpers ----
@@ -616,6 +682,9 @@ final class UsersModule extends Module
             'timezones'   => \DateTimeZone::listIdentifiers(),
             'canDisable'  => $this->app->auth->supportsDisabling(),
             'minPassword' => self::MIN_PASSWORD,
+            'temp'        => $existing === null && $this->tempPasswords(),
+            'mailReady'   => $existing === null && $this->tempPasswords() && ($this->notifier()?->canMailPeople() ?? false),
+            'mustChange'  => $existing !== null && !empty($existing['must_change_password']),
             'mergeTargets' => $existing === null ? [] : $this->app->db->all(
                 'SELECT user_id, username, firstname, lastname' . ($this->app->auth->supportsDisabling() ? ', disabled' : '')
                 . ' FROM users WHERE user_id <> ? AND username <> ? ORDER BY username',

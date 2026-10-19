@@ -1,7 +1,8 @@
 <?php
 /**
  * Create/edit form. Expects $isNew, $isSelf, $user (row|null), $f (field values), $perms (dept_id => 'r'|'rw'),
- * $errors, $departments, $timezones, $canDisable, $minPassword.
+ * $errors, $departments, $timezones, $canDisable, $minPassword, $temp (new user: a password is generated and emailed, so
+ * none is asked for), $mailReady (new user and email can be sent), $mustChange (edit: still on a temporary password).
  */
 $action = ($isNew ? url('/users/new') : url('/users/' . rawurlencode((string) $f['user_id']))) . $listQs;
 $back = url('/users') . $listQs;
@@ -42,6 +43,12 @@ $never = $user === null || $user['lastlogin'] === null || str_starts_with((strin
     </div>
 <?php endif; ?>
 
+<?php if ($mustChange): ?>
+    <div class="alert alert-info" role="status">
+        <strong>Still on a temporary password.</strong> This person has not chosen their own yet, and will be asked to when they sign in.
+    </div>
+<?php endif; ?>
+
 <?php foreach ($errors as $err): ?>
     <div class="alert alert-danger" role="alert"><?= e($err) ?></div>
 <?php endforeach; ?>
@@ -67,7 +74,10 @@ $never = $user === null || $user['lastlogin'] === null || str_starts_with((strin
         </div>
         <div class="field">
             <label for="email">Email</label>
-            <input type="email" id="email" name="email" value="<?= e($f['email']) ?>" maxlength="128">
+            <input type="email" id="email" name="email" value="<?= e($f['email']) ?>" maxlength="128"<?= $mailReady ? ' required' : '' ?>>
+            <?php if ($mailReady): ?>
+                <small class="muted">The temporary password is emailed here.</small>
+            <?php endif; ?>
         </div>
         <div class="field-row even">
             <div class="field">
@@ -97,8 +107,19 @@ $never = $user === null || $user['lastlogin'] === null || str_starts_with((strin
         </label>
     </div>
 
+    <?php if ($temp): ?>
+        <?php /* No password card: a temporary one is generated when the user is created. */ ?>
+        <div class="card form-card wide section">
+            <h2>Password</h2>
+            <p class="muted small">A temporary password is generated when you create the user and <?= $mailReady ? 'emailed to them' : 'shown to you once (email is not set up, so it cannot be sent; an administrator can set it up on the Email page)' ?>.
+                The first time they sign in they must choose their own.</p>
+        </div>
+    <?php else: ?>
     <div class="card form-card wide section">
         <h2><?= $isNew ? 'Password' : 'Reset password' ?></h2>
+        <?php if ($isNew): ?>
+            <p class="muted small">Apply the latest migrations (Migrations page) and new users will instead get a generated password by email.</p>
+        <?php endif; ?>
         <?php if (!$isNew): ?>
             <p class="muted small">Leave blank to keep the current password. Tell the person their new password in person; they can change it from the Account page.</p>
         <?php endif; ?>
@@ -114,6 +135,7 @@ $never = $user === null || $user['lastlogin'] === null || str_starts_with((strin
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
     <div class="card form-card wide section">
         <div class="card-head"><h2>Department access</h2></div>
