@@ -35,9 +35,8 @@ the setup wizard to build a fresh database. It asks for a tick and the words `DE
 ### Entering several identical assets
 
 On the **New asset** page, tick **Keep data for batch input** before creating an asset. Instead of opening the new asset, the page
-returns with the form filled in from it (type, department, building, room, cost, purchase date, PO, purchaser, description and
-notes), leaving the asset and serial numbers empty, so twenty laptops only need those two typed each time. Untick it on the last
-one. Nothing is stored for this: the form is filled from the asset just created, and only if you can add to its department.
+returns with the form filled in from it (every field, including the asset and serial numbers), so twenty laptops only need
+those two changed each time. The checkbox is at the top of the form. Untick it on the last one. Nothing is stored for this: the form is filled from the asset just created, and only if you can add to its department.
 
 ### Attachments
 

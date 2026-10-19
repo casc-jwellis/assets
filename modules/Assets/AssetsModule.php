@@ -297,8 +297,8 @@ final class AssetsModule extends Module
     }
 
     /**
-     * The values to start the next asset of a batch from: the asset just created, minus the two things that are
-     * different on every asset (asset and serial number). Null (a normal blank form) if it is not found or the
+     * The values to start the next asset of a batch from: everything on the asset just created (the person changes
+     * the asset and serial numbers). Null (a normal blank form) if it is not found or the
      * person cannot add to its department, so a stale or hand-edited link never reveals anything.
      *
      * @return array<string,mixed>|null
@@ -314,8 +314,8 @@ final class AssetsModule extends Module
             return null;
         }
         return [
-            'asset_number'  => '',
-            'serial_number' => '',
+            'asset_number'  => $a['asset_number'],
+            'serial_number' => $a['serial_number'],
             'type_id'       => (int) $a['type_id'],
             'po_number'     => $a['po_number'],
             'cost'          => number_format((float) $a['cost'], 2, '.', ''),
