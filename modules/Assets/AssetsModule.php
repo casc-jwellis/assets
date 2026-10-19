@@ -273,10 +273,18 @@ final class AssetsModule extends Module
 
     // ----------------------------------------------------------------- write
 
+    /** "Keep data for batch input" is ticked: after saving, the form comes back filled in for the next asset. */
+    private bool $batch = false;
+
     public function showNew(Request $req): string
     {
         $this->rememberList($req);
         $this->requireWriter();
+        $again = $this->batchSource((int) $req->query('again'));
+        if ($again !== null) {
+            $this->batch = true;
+            return $this->form(null, $again, [], 0);
+        }
         $writable = $this->app->auth->writableDepartmentIds();
         $home = (int) ($this->app->auth->user()['department_id'] ?? 0);
         $dept = $this->app->auth->canWrite($home) && $home > 0 ? $home : (int) ($writable[0] ?? 0);
@@ -286,6 +294,40 @@ final class AssetsModule extends Module
             'purchaser_id' => 0, 'purchase_date' => date('Y-m-d'), 'department_id' => $dept, 'building_id' => 0,
             'room' => '', 'description' => '', 'notes' => '', 'reason' => '',
         ], [], 0);
+    }
+
+    /**
+     * The values to start the next asset of a batch from: the asset just created, minus the two things that are
+     * different on every asset (asset and serial number). Null (a normal blank form) if it is not found or the
+     * person cannot add to its department, so a stale or hand-edited link never reveals anything.
+     *
+     * @return array<string,mixed>|null
+     */
+    private function batchSource(int $id): ?array
+    {
+        if ($id < 1) {
+            return null;
+        }
+        [$scope, $params] = $this->app->auth->departmentScope('a.department_id');
+        $a = $this->app->db->one("SELECT a.* FROM assets a WHERE a.asset_id = ? AND {$scope}", [$id, ...$params]);
+        if ($a === null || !$this->app->auth->canWrite((int) $a['department_id'])) {
+            return null;
+        }
+        return [
+            'asset_number'  => '',
+            'serial_number' => '',
+            'type_id'       => (int) $a['type_id'],
+            'po_number'     => $a['po_number'],
+            'cost'          => number_format((float) $a['cost'], 2, '.', ''),
+            'purchaser_id'  => (int) $a['purchaser_id'],
+            'purchase_date' => substr((string) $a['purchase_date'], 0, 10),
+            'department_id' => (int) $a['department_id'],
+            'building_id'   => (int) $a['building_id'],
+            'room'          => $a['room'],
+            'description'   => $a['description'],
+            'notes'         => $a['notes'],
+            'reason'        => '',
+        ];
     }
 
     public function create(Request $req): string
@@ -347,6 +389,7 @@ final class AssetsModule extends Module
         $auth = $this->app->auth;
         $isNew = $existing === null;
         $canRenumber = $isNew || $auth->isAdmin();
+        $this->batch = $isNew && $req->post('batch') === '1';
 
         $f = [
             'asset_number'  => $canRenumber ? trim((string) $req->post('asset_number')) : (string) $existing['asset_number'],
@@ -394,6 +437,10 @@ final class AssetsModule extends Module
                         'from'         => $this->placeLabel((int) $existing['department_id'], (int) $existing['building_id'], (string) $existing['room'], $lookups),
                         'to'           => $this->placeLabel($f['department_id'], $f['building_id'], $f['room'], $lookups),
                     ]], $f['reason']));
+                }
+                if ($this->batch) { // straight back to a form filled in with this asset's details
+                    $this->app->session->flash('success', 'Asset ' . $f['asset_number'] . ' created. The form below is filled in with its details: change the asset and serial numbers for the next one.');
+                    $this->redirect('/assets/new?again=' . $id . ($this->listQs !== '' ? '&' . ltrim($this->listQs, '?') : ''));
                 }
                 $this->redirect('/assets/' . $id . $this->listQs);
             } catch (\PDOException $e) {
@@ -1197,6 +1244,7 @@ final class AssetsModule extends Module
         return $this->render('form', [
             'title'       => $existing === null ? 'New asset' : 'Edit ' . $existing['asset_number'],
             'isNew'       => $existing === null,
+            'batch'       => $existing === null && $this->batch,
             'asset'       => $existing,
             'f'           => $f,
             'errors'      => $errors,

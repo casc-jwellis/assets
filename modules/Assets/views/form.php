@@ -1,7 +1,7 @@
 <?php
 /**
  * Add/edit form. Expects $isNew, $asset (row|null), $f (values), $errors, $version, $conflict,
- * $canRenumber, $types, $buildings, $departments, $writableDepartments.
+ * $batch (new asset: "keep data for batch input" is ticked), $canRenumber, $types, $buildings, $departments, $writableDepartments.
  */
 $action = ($isNew ? url('/assets/new') : url('/assets/' . (int) $asset['asset_id'] . '/edit')) . $listQs;
 $back = ($isNew ? url('/assets') : url('/assets/' . (int) $asset['asset_id'])) . $listQs;
@@ -134,6 +134,13 @@ $back = ($isNew ? url('/assets') : url('/assets/' . (int) $asset['asset_id'])) .
             <textarea id="notes" name="notes" rows="6" maxlength="10240"><?= e($f['notes']) ?></textarea>
         </div>
     </div>
+
+    <?php if ($isNew): ?>
+        <label class="check">
+            <input type="checkbox" name="batch" value="1"<?= $batch ? ' checked' : '' ?>>
+            <span><strong>Keep data for batch input</strong>: after creating this asset, show this form again with everything filled in except the asset and serial numbers</span>
+        </label>
+    <?php endif; ?>
 
     <div class="form-actions">
         <button type="submit" class="btn btn-primary"><?= $isNew ? 'Create asset' : 'Save changes' ?></button>

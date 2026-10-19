@@ -32,6 +32,13 @@ The Import page also has a **Delete tables and Config** button for starting over
 the database, removes `config/config.php` and the files in `storage/attachments/`, and signs you out, and you land on
 the setup wizard to build a fresh database. It asks for a tick and the words `DELETE ALL`, and it cannot be undone.
 
+### Entering several identical assets
+
+On the **New asset** page, tick **Keep data for batch input** before creating an asset. Instead of opening the new asset, the page
+returns with the form filled in from it (type, department, building, room, cost, purchase date, PO, purchaser, description and
+notes), leaving the asset and serial numbers empty, so twenty laptops only need those two typed each time. Untick it on the last
+one. Nothing is stored for this: the form is filled from the asset just created, and only if you can add to its department.
+
 ### Attachments
 
 Each asset page has an **Attachments** card for photos and documents: JPG, PNG, WebP, PDF, TXT and CSV (what a file
