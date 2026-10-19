@@ -1,6 +1,11 @@
 <?php
-/** Overview. Expects $departments (with assets, users, access, locked), $buildings (with assets) and $types (with assets). */
+/**
+ * Overview, one list per tab. Expects $tab ('departments'|'buildings'|'types'), $totals (kind => count), $rows (the active
+ * list's rows, with usage counts) and $kinds (kind => table/wording).
+ */
 $plural = static fn(int $n, string $word): string => number_format($n) . ' ' . $word . ($n === 1 ? '' : 's');
+$tabs = ['departments' => 'Departments', 'buildings' => 'Buildings', 'types' => 'Asset types'];
+$add = ['departments' => 'Add department', 'buildings' => 'Add building', 'types' => 'Add asset type'];
 ?>
 <div class="page-head">
     <div>
@@ -9,19 +14,29 @@ $plural = static fn(int $n, string $word): string => number_format($n) . ' ' . $
     </div>
 </div>
 
-<div class="card section">
+<nav class="tabs" aria-label="Reference data lists">
+    <?php foreach ($tabs as $key => $label): ?>
+        <a class="tab<?= $tab === $key ? ' is-active' : '' ?>" href="<?= e(url('/lists') . '?tab=' . $key) ?>"<?= $tab === $key ? ' aria-current="page"' : '' ?>>
+            <?= e($label) ?> <span class="tab-count"><?= e(number_format($totals[$key])) ?></span>
+        </a>
+    <?php endforeach; ?>
+</nav>
+
+<div class="card">
     <div class="card-head">
-        <h2>Departments <span class="muted">(<?= e(count($departments)) ?>)</span></h2>
-        <a class="btn btn-primary" href="<?= e(url('/lists/departments/new')) ?>">Add department</a>
+        <h2><?= e($tabs[$tab]) ?></h2>
+        <a class="btn btn-primary" href="<?= e(url('/lists/' . $tab . '/new')) ?>"><?= e($add[$tab]) ?></a>
     </div>
-    <?php if ($departments === []): ?>
-        <p class="empty">No departments yet.</p>
-    <?php else: ?>
+
+    <?php if ($rows === []): ?>
+        <p class="empty">No <?= e(strtolower($tabs[$tab])) ?> yet.</p>
+
+    <?php elseif ($tab === 'departments'): ?>
         <div class="table-wrap">
             <table class="table">
                 <thead><tr><th>Abbreviation</th><th>Name</th><th class="num">Assets</th><th class="num">Users (home)</th><th class="num">With access</th></tr></thead>
                 <tbody>
-                <?php foreach ($departments as $d): ?>
+                <?php foreach ($rows as $d): ?>
                     <tr>
                         <td class="nowrap"><span class="badge"><?= e($d['abbr']) ?></span></td>
                         <td>
@@ -39,22 +54,13 @@ $plural = static fn(int $n, string $word): string => number_format($n) . ' ' . $
                 </tbody>
             </table>
         </div>
-    <?php endif; ?>
-</div>
 
-<div class="card section">
-    <div class="card-head">
-        <h2>Buildings <span class="muted">(<?= e(count($buildings)) ?>)</span></h2>
-        <a class="btn btn-primary" href="<?= e(url('/lists/buildings/new')) ?>">Add building</a>
-    </div>
-    <?php if ($buildings === []): ?>
-        <p class="empty">No buildings yet.</p>
-    <?php else: ?>
+    <?php elseif ($tab === 'buildings'): ?>
         <div class="table-wrap">
             <table class="table">
                 <thead><tr><th>Abbreviation</th><th>Name</th><th class="num">Assets</th></tr></thead>
                 <tbody>
-                <?php foreach ($buildings as $b): ?>
+                <?php foreach ($rows as $b): ?>
                     <tr>
                         <td class="nowrap"><span class="badge"><?= e($b['abbr']) ?></span></td>
                         <td><a href="<?= e(url('/lists/buildings/' . (int) $b['building_id'])) ?>"><?= e($b['name']) ?></a></td>
@@ -64,22 +70,13 @@ $plural = static fn(int $n, string $word): string => number_format($n) . ' ' . $
                 </tbody>
             </table>
         </div>
-    <?php endif; ?>
-</div>
 
-<div class="card section">
-    <div class="card-head">
-        <h2>Asset types <span class="muted">(<?= e(count($types)) ?>)</span></h2>
-        <a class="btn btn-primary" href="<?= e(url('/lists/types/new')) ?>">Add asset type</a>
-    </div>
-    <?php if ($types === []): ?>
-        <p class="empty">No asset types yet.</p>
     <?php else: ?>
         <div class="table-wrap">
             <table class="table">
                 <thead><tr><th>Name</th><th>Depreciation</th><th class="num">Assets</th></tr></thead>
                 <tbody>
-                <?php foreach ($types as $t): ?>
+                <?php foreach ($rows as $t): ?>
                     <tr>
                         <td><a href="<?= e(url('/lists/types/' . (int) $t['type_id'])) ?>"><?= e($t['name']) ?></a></td>
                         <td><?= (int) $t['depreciation_years'] > 0 ? e($plural((int) $t['depreciation_years'], 'year')) : '<span class="muted">None</span>' ?></td>

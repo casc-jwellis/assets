@@ -12,7 +12,7 @@ $plural = static fn(int $n, string $word, string $many = ''): string => number_f
 <div class="narrow-col">
 <div class="page-head">
     <div>
-        <a class="back-link" href="<?= e(url('/lists')) ?>">&larr; Reference data</a>
+        <a class="back-link" href="<?= e(url('/lists') . '?tab=' . $kind) ?>">&larr; Reference data</a>
         <h1><?= $isNew ? 'Add ' . e($meta['one']) : e($hasAbbr ? $row['abbr'] . ' · ' . $row['name'] : $row['name']) ?></h1>
     </div>
     <?php if (!$isNew): ?>
@@ -76,7 +76,7 @@ $plural = static fn(int $n, string $word, string $many = ''): string => number_f
 
     <div class="form-actions">
         <button type="submit" class="btn btn-primary"><?= $isNew ? 'Add ' . e($meta['one']) : 'Save changes' ?></button>
-        <a class="btn" href="<?= e(url('/lists')) ?>">Cancel</a>
+        <a class="btn" href="<?= e(url('/lists') . '?tab=' . $kind) ?>">Cancel</a>
     </div>
 </form>
 </div>

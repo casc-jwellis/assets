@@ -58,7 +58,9 @@ replaces the one entered during setup. To remove the feature, delete `modules/Th
 ### Reference data (departments, buildings, asset types)
 
 **Reference data** in the sidebar (administrators only) adds, renames and deletes the lists assets are sorted into:
-departments, buildings and asset types. Each list shows how many assets (and, for departments, users) use every entry.
+departments, buildings and asset types. Each list has its own tab (`/lists?tab=buildings` and so on), with the number of
+entries on the tab, and shows how many assets (and, for departments, users) use every entry. Saving, cancelling or deleting
+returns you to the same tab.
 
 - **Renaming a department's abbreviation** also updates the transfer history, because the history records departments by
   abbreviation text; it all happens in one transaction, so a failure changes nothing.

@@ -525,3 +525,14 @@ code { font-size: .88em; background: var(--surface-2); padding: 1px 5px; border-
 /* ---------- Departments & types ---------- */
 .usage-list { margin: 0 0 14px; padding-left: 20px; }
 .usage-list li { margin-bottom: 4px; }
+
+/* Tabs: ordinary links, one per list, with the current one marked (Reference data) */
+.tabs { display: flex; gap: 4px; margin: 0 0 16px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.tab {
+    padding: 10px 14px; white-space: nowrap; font-weight: 550;
+    color: var(--muted); border-bottom: 2px solid transparent; text-decoration: none;
+}
+.tab:hover { color: var(--text); text-decoration: none; }
+.tab.is-active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-count { margin-left: 4px; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: .78rem; font-weight: 600; }
+.tab.is-active .tab-count { background: var(--accent-soft); color: var(--accent); }

@@ -70,34 +70,53 @@ final class ListsModule extends Module
         $db = $this->app->db;
         $count = static fn(array $rows, string $key): array => array_column($rows, 'n', $key);
 
-        $depts = $db->all('SELECT department_id, abbr, name FROM departments ORDER BY abbr');
-        $inDept = $count($db->all('SELECT department_id, COUNT(*) AS n FROM assets GROUP BY department_id'), 'department_id');
-        $users = $count($db->all('SELECT department_id, COUNT(*) AS n FROM users GROUP BY department_id'), 'department_id');
-        $access = $count($db->all('SELECT department_id, COUNT(*) AS n FROM permissions GROUP BY department_id'), 'department_id');
-        foreach ($depts as &$d) {
-            $id = $d['department_id'];
-            $d['assets'] = (int) ($inDept[$id] ?? 0);
-            $d['users'] = (int) ($users[$id] ?? 0);
-            $d['access'] = (int) ($access[$id] ?? 0);
-            $d['locked'] = $this->isReserved('departments', $d);
-        }
-        unset($d);
+        // One list at a time, chosen by ?tab= (a plain link, so Back, bookmarks and "return to where I was" all work).
+        $tab = (string) $req->query('tab');
+        $tab = isset(self::KINDS[$tab]) ? $tab : 'departments';
 
-        $buildings = $db->all('SELECT building_id, abbr, name FROM buildings ORDER BY abbr');
-        $inBuilding = $count($db->all('SELECT building_id, COUNT(*) AS n FROM assets GROUP BY building_id'), 'building_id');
-        foreach ($buildings as &$b) {
-            $b['assets'] = (int) ($inBuilding[$b['building_id']] ?? 0);
+        // The numbers on the tabs.
+        $totals = [];
+        foreach (self::KINDS as $kind => $meta) {
+            $totals[$kind] = (int) $db->value("SELECT COUNT(*) FROM `{$meta['table']}`");
         }
-        unset($b);
 
-        $types = $db->all('SELECT type_id, name, depreciation_years FROM asset_types ORDER BY name');
-        $ofType = $count($db->all('SELECT type_id, COUNT(*) AS n FROM assets GROUP BY type_id'), 'type_id');
-        foreach ($types as &$t) {
-            $t['assets'] = (int) ($ofType[$t['type_id']] ?? 0);
+        $rows = [];
+        if ($tab === 'departments') {
+            $rows = $db->all('SELECT department_id, abbr, name FROM departments ORDER BY abbr');
+            $inDept = $count($db->all('SELECT department_id, COUNT(*) AS n FROM assets GROUP BY department_id'), 'department_id');
+            $users = $count($db->all('SELECT department_id, COUNT(*) AS n FROM users GROUP BY department_id'), 'department_id');
+            $access = $count($db->all('SELECT department_id, COUNT(*) AS n FROM permissions GROUP BY department_id'), 'department_id');
+            foreach ($rows as &$d) {
+                $id = $d['department_id'];
+                $d['assets'] = (int) ($inDept[$id] ?? 0);
+                $d['users'] = (int) ($users[$id] ?? 0);
+                $d['access'] = (int) ($access[$id] ?? 0);
+                $d['locked'] = $this->isReserved('departments', $d);
+            }
+            unset($d);
+        } elseif ($tab === 'buildings') {
+            $rows = $db->all('SELECT building_id, abbr, name FROM buildings ORDER BY abbr');
+            $inBuilding = $count($db->all('SELECT building_id, COUNT(*) AS n FROM assets GROUP BY building_id'), 'building_id');
+            foreach ($rows as &$b) {
+                $b['assets'] = (int) ($inBuilding[$b['building_id']] ?? 0);
+            }
+            unset($b);
+        } else {
+            $rows = $db->all('SELECT type_id, name, depreciation_years FROM asset_types ORDER BY name');
+            $ofType = $count($db->all('SELECT type_id, COUNT(*) AS n FROM assets GROUP BY type_id'), 'type_id');
+            foreach ($rows as &$t) {
+                $t['assets'] = (int) ($ofType[$t['type_id']] ?? 0);
+            }
+            unset($t);
         }
-        unset($t);
 
-        return $this->render('index', ['title' => 'Reference data', 'departments' => $depts, 'buildings' => $buildings, 'types' => $types]);
+        return $this->render('index', ['title' => 'Reference data', 'tab' => $tab, 'totals' => $totals, 'rows' => $rows, 'kinds' => self::KINDS]);
+    }
+
+    /** Where to go back to after working on one kind: its own tab. */
+    private function listPath(string $kind): string
+    {
+        return '/lists?tab=' . $kind;
     }
 
     // ------------------------------------------------------------ add / edit
@@ -208,7 +227,7 @@ final class ListsModule extends Module
             }
             $label = $hasAbbr ? $values['abbr'] : $values['name'];
             $this->app->session->flash('success', $meta['One'] . ' "' . $label . '" ' . ($isNew ? 'added.' : 'saved.') . $note);
-            $this->redirect('/lists');
+            $this->redirect($this->listPath($kind));
         }
 
         http_response_code(422);
@@ -257,10 +276,10 @@ final class ListsModule extends Module
             }
             error_log('lists delete failed: ' . $e->getMessage());
             $this->app->session->flash('danger', 'It could not be deleted because of a database error. Nothing was changed.');
-            $this->redirect('/lists');
+            $this->redirect($this->listPath($kind));
         }
         $this->app->session->flash('success', $meta['One'] . ' "' . $label . '" deleted.');
-        $this->redirect('/lists');
+        $this->redirect($this->listPath($kind));
     }
 
     // ------------------------------------------------------------ helpers
@@ -300,7 +319,7 @@ final class ListsModule extends Module
     {
         if ($this->isReserved($kind, $row)) {
             $this->app->session->flash('info', '"' . self::RESERVED_ABBR . '" is a system department: retiring and restoring assets is recorded against it, so it cannot be changed or deleted.');
-            $this->redirect('/lists');
+            $this->redirect($this->listPath($kind));
         }
     }
 
