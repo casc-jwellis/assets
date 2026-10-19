@@ -29,6 +29,8 @@ final class ThemeModule extends Module
         $router->post('/theme/reset', [$this, 'reset'], $admin);
         // Public: the login page needs the colours too. It reveals nothing but a handful of colour values.
         $router->get('/theme/css', [$this, 'css'], ['public' => true]);
+        // Public too: browsers fetch the tab icon on the login page as well.
+        $router->get('/theme/favicon.svg', [$this, 'favicon'], ['public' => true]);
     }
 
     public function nav(): array
@@ -116,6 +118,28 @@ final class ThemeModule extends Module
         header('Cache-Control: public, max-age=31536000, immutable');
         header('Expires: ' . gmdate('D, d M Y H:i:s', time() + 31536000) . ' GMT');
         return $colors === null ? "/* No custom theme. */\n" : ThemeColors::css($colors);
+    }
+
+    /**
+     * The tab icon in the theme's accent colour: the same box as the sidebar logo (accent background, accent-contrast
+     * line). ?mode=light|dark picks that mode's accent, ?v=<theme version> only changes the URL when the theme does.
+     */
+    public function favicon(Request $req): string
+    {
+        $mode = $req->query('mode') === 'dark' ? 'dark' : 'light';
+        $d = ThemeColors::derive($this->currentColors()[$mode], $mode === 'dark');
+        header('Content-Type: image/svg+xml; charset=utf-8');
+        if ((string) $req->query('v') !== '') {
+            header_remove('Pragma');
+            header('Cache-Control: public, max-age=31536000, immutable');
+            header('Expires: ' . gmdate('D, d M Y H:i:s', time() + 31536000) . ' GMT');
+        }
+        // Colours come out of ThemeColors::derive(): always well-formed #rrggbb values.
+        return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
+            . '<rect width="32" height="32" rx="7" fill="' . $d['accent'] . '"/>'
+            . '<g transform="translate(6 6) scale(0.8333)" fill="none" stroke="' . $d['accent-contrast'] . '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+            . '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>'
+            . '<polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></g></svg>';
     }
 
     // ------------------------------------------------------------ helpers

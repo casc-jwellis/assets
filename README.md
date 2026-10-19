@@ -59,7 +59,7 @@ yourself (accent, page background, cards, sidebar and text, per mode); a live pr
 save. Everything else (hover, borders, muted text, tints) is derived from those five, and a combination whose text or
 accent colour would be hard to read (contrast below 4.5:1) is refused. The settings live in the `settings` table
 (migration `015`); the colours reach the pages as a small generated stylesheet at `/theme/css`. The name set here
-replaces the one entered during setup. To remove the feature, delete `modules/Theme`.
+replaces the one entered during setup. The browser tab icon is the same box as the sidebar logo in the theme's accent colour (the light or dark accent, following the light/dark toggle), generated at `/theme/favicon.svg`; browsers cache tab icons hard, so an old icon can linger until the tab is reopened. To remove the feature, delete `modules/Theme` (the plain `static/favicon.svg` is used again).
 
 ### Reference data (departments, buildings, asset types)
 

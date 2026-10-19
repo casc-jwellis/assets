@@ -22,7 +22,15 @@ $themeVersion = app()->module('Theme') !== null ? app()->settings->get('theme.ve
     }
 })();
 </script>
+<?php if (app()->module('Theme') !== null): ?>
+<?php /* Same box as the sidebar logo, in the theme's accent. app.js swaps data-light/data-dark in as the theme changes. */ ?>
+<link rel="icon" type="image/svg+xml" id="favicon"
+      href="<?= e(url('/theme/favicon.svg') . '?mode=light&v=' . rawurlencode((string) $themeVersion)) ?>"
+      data-light="<?= e(url('/theme/favicon.svg') . '?mode=light&v=' . rawurlencode((string) $themeVersion)) ?>"
+      data-dark="<?= e(url('/theme/favicon.svg') . '?mode=dark&v=' . rawurlencode((string) $themeVersion)) ?>">
+<?php else: ?>
 <link rel="icon" type="image/svg+xml" href="<?= e(asset('favicon.svg')) ?>">
+<?php endif; ?>
 <link rel="stylesheet" href="<?= e(asset('css/app.css')) ?>">
 <?php if ($themeVersion !== null && $themeVersion !== ''): ?>
 <link rel="stylesheet" href="<?= e(url('/theme/css') . '?v=' . rawurlencode($themeVersion)) ?>">

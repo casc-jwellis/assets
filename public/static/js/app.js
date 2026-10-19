@@ -3,11 +3,20 @@
 
     var root = document.documentElement;
 
+    // ----- Tab icon: the light or dark version of the theme's accent colour (see ThemeModule::favicon) -----
+    function setFavicon() {
+        var link = document.getElementById('favicon');
+        var href = link && link.getAttribute('data-' + (root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'));
+        if (href && link.getAttribute('href') !== href) { link.setAttribute('href', href); }
+    }
+    setFavicon();
+
     // ----- Light/dark toggle -----
     document.querySelectorAll('[data-theme-toggle]').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
             root.setAttribute('data-theme', next);
+            setFavicon();
             try { localStorage.setItem('theme', next); } catch (e) { /* storage unavailable */ }
         });
     });
