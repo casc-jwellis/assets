@@ -234,7 +234,7 @@ a.stat-link:hover { border-color: var(--accent); color: inherit; text-decoration
     font-weight: 600;
     background: var(--surface-2);
 }
-.table th.num { text-align: right; }
+.table th.num, .table td.num { text-align: right; }
 .table tbody tr:last-child td { border-bottom: 0; }
 .table tbody tr:hover td { background: var(--surface-2); }
 
@@ -521,3 +521,7 @@ code { font-size: .88em; background: var(--surface-2); padding: 1px 5px; border-
 /* ---------- Email page ---------- */
 .label-like { display: block; margin-bottom: 6px; font-weight: 550; font-size: .9rem; }
 .log-to { font-size: .85rem; white-space: nowrap; }
+
+/* ---------- Departments & types ---------- */
+.usage-list { margin: 0 0 14px; padding-left: 20px; }
+.usage-list li { margin-bottom: 4px; }

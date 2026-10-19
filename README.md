@@ -55,6 +55,20 @@ accent colour would be hard to read (contrast below 4.5:1) is refused. The setti
 (migration `015`); the colours reach the pages as a small generated stylesheet at `/theme/css`. The name set here
 replaces the one entered during setup. To remove the feature, delete `modules/Theme`.
 
+### Departments and asset types
+
+**Departments & types** in the sidebar (administrators only) adds, renames and deletes the lists assets are sorted into.
+A page shows each department and type with how many assets, users and access entries use it.
+
+- **Renaming a department's abbreviation** also updates the transfer history, because the history records departments by
+  abbreviation text; it all happens in one transaction, so a failure changes nothing.
+- **`RETIRE` is a system department**: retiring and restoring assets is recorded against it, so it cannot be edited or
+  deleted, and no other department may use that abbreviation.
+- **Deleting** is only possible when nothing depends on it: no assets in or bought by a department, no users with it as their
+  home department, and no assets of a type. The delete page says what is in the way. Deleting a department that only has
+  access entries and history removes the access entries; the history keeps its text.
+- Abbreviations are up to 6 letters, digits, hyphens or underscores and are saved in capitals; names must be unique.
+
 ### Email notifications
 
 **Email** in the sidebar (administrators only) sends an email to a list of addresses when an asset is added, when
