@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Account;
 
+use App\Core\Auth;
 use App\Core\Module;
 use App\Core\Request;
 use App\Core\Router;
@@ -40,6 +41,8 @@ final class AccountModule extends Module
         }
         if (strlen($new) < self::MIN_LENGTH) {
             $errors[] = 'The new password must be at least ' . self::MIN_LENGTH . ' characters.';
+        } elseif (strlen($new) > Auth::MAX_PASSWORD) {
+            $errors[] = 'The new password can be at most ' . Auth::MAX_PASSWORD . ' characters (letters outside A to Z count as more than one).';
         } elseif ($new === $current) {
             $errors[] = 'The new password must be different from the ' . ($forced ? 'temporary' : 'current') . ' one.';
         }
@@ -70,6 +73,7 @@ final class AccountModule extends Module
             'title'  => $forced ? 'Choose a new password' : 'Change password',
             'errors' => $errors,
             'min'    => self::MIN_LENGTH,
+            'max'    => Auth::MAX_PASSWORD,
             'forced' => $forced,
         ]);
     }

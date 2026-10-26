@@ -185,13 +185,13 @@ final class EmailModule extends Module
             } elseif ($password !== '') {
                 $s->set('mail.password', SecretBox::encrypt($password));
             }
-        } catch (\RuntimeException $e) { // SecretBox: no OpenSSL, or storage/ not writable
-            http_response_code(500);
-            return $this->form($v, [$e->getMessage() . ' The other settings were saved; the password was not.']);
-        } catch (\PDOException $e) {
+        } catch (\PDOException $e) { // first: PDOException is a RuntimeException, and its text is not for the screen
             error_log('email settings save failed: ' . $e->getMessage());
             http_response_code(500);
             return $this->form($v, ['The settings could not be saved because of a database error.']);
+        } catch (\RuntimeException $e) { // SecretBox: no OpenSSL, or storage/ not writable
+            http_response_code(500);
+            return $this->form($v, [$e->getMessage() . ' The other settings were saved; the password was not.']);
         }
 
         $this->app->session->flash('success', 'Email settings saved.');

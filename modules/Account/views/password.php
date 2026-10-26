@@ -1,4 +1,4 @@
-<?php /** Expects $errors (list<string>), $min (int), $forced (bool: signed in with a temporary password). */ ?>
+<?php /** Expects $errors (list<string>), $min and $max (int), $forced (bool: signed in with a temporary password). */ ?>
 <div class="page-head">
     <div>
         <h1><?= $forced ? 'Choose a new password' : 'Change password' ?></h1>
@@ -26,12 +26,12 @@
         </div>
         <div class="field">
             <label for="new">New password</label>
-            <input type="password" id="new" name="new" autocomplete="new-password" minlength="<?= e($min) ?>" required>
-            <small class="muted">At least <?= e($min) ?> characters.</small>
+            <input type="password" id="new" name="new" autocomplete="new-password" minlength="<?= e($min) ?>" maxlength="<?= e($max) ?>" required>
+            <small class="muted">Between <?= e($min) ?> and <?= e($max) ?> characters.</small>
         </div>
         <div class="field">
             <label for="confirm">Confirm new password</label>
-            <input type="password" id="confirm" name="confirm" autocomplete="new-password" minlength="<?= e($min) ?>" required>
+            <input type="password" id="confirm" name="confirm" autocomplete="new-password" minlength="<?= e($min) ?>" maxlength="<?= e($max) ?>" required>
         </div>
         <button type="submit" class="btn btn-primary">Update password</button>
     </form>

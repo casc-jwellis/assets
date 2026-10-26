@@ -116,7 +116,7 @@ sends them to choosing their own; the temporary password cannot be reused. If th
 or the server refuses), the user is still created and the temporary password is shown to you **once**, on that page, so you
 can pass it on. It is never stored in readable form, never put in the email log, and not shown again. You can still set
 a password by hand when editing a user; that does not force a change. The Department access table has an **All departments** row to set None, Read or Read & write for every department at once. Needs migration `017` (until it is applied the
-page keeps its old password boxes).
+page keeps its old password boxes). Passwords are 10 to 64 characters wherever one is set (your own account, editing a user, the setup wizard); the limit is counted in bytes, so letters outside A to Z count as more than one. Signing in is not limited, so an older, longer password still works.
 ### Migrations
 
 `migrations/*.sql` are applied once each, in filename order, and recorded in a `schema_migrations` table.

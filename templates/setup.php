@@ -84,11 +84,11 @@
             <div class="field-row even">
                 <div class="field">
                     <label for="admin_pass">Password</label>
-                    <input type="password" id="admin_pass" name="admin_pass" autocomplete="new-password" minlength="10">
+                    <input type="password" id="admin_pass" name="admin_pass" autocomplete="new-password" minlength="10" maxlength="64">
                 </div>
                 <div class="field">
                     <label for="admin_pass2">Confirm password</label>
-                    <input type="password" id="admin_pass2" name="admin_pass2" autocomplete="new-password" minlength="10">
+                    <input type="password" id="admin_pass2" name="admin_pass2" autocomplete="new-password" minlength="10" maxlength="64">
                 </div>
             </div>
         </section>

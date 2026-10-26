@@ -117,7 +117,9 @@ final class AssetsModule extends Module
     private function listWhere(string $search, string $status): array
     {
         [$where, $params] = $this->app->auth->departmentScope('a.department_id');
-        if ($search !== '') {
+        if ($search !== '' && has_wide_chars($search)) {
+            $where .= ' AND 1 = 0'; // no stored text holds emoji, so nothing can match (and the database cannot compare it)
+        } elseif ($search !== '') {
             // '!' is the LIKE escape character so user-typed % and _ are matched literally.
             $like = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $search) . '%';
             $where .= " AND (a.asset_number LIKE ? ESCAPE '!' OR a.serial_number LIKE ? ESCAPE '!' OR a.description LIKE ? ESCAPE '!')";
@@ -465,7 +467,8 @@ final class AssetsModule extends Module
 
         if ($f['asset_number'] === '' || $this->len($f['asset_number']) > 32 || !$this->oneLine($f['asset_number'])) {
             $e[] = 'Enter an asset number (up to 32 characters).';
-        } elseif ($db->one('SELECT 1 FROM assets WHERE asset_number = ? AND asset_id <> ?', [$f['asset_number'], (int) ($existing['asset_id'] ?? 0)]) !== null) {
+        } elseif (!$this->hasWideChars($f['asset_number']) // (reported below; the database cannot even compare such a value)
+            && $db->one('SELECT 1 FROM assets WHERE asset_number = ? AND asset_id <> ?', [$f['asset_number'], (int) ($existing['asset_id'] ?? 0)]) !== null) {
             $e[] = 'Another asset already uses that asset number.';
         }
         if ($f['description'] === '' || $this->len($f['description']) > 64 || !$this->oneLine($f['description'])) {

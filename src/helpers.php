@@ -63,6 +63,17 @@ function current_user(): ?array
     return app()->auth->user();
 }
 
+/**
+ * Does any of these texts hold emoji or other characters outside the Basic Multilingual Plane (4 bytes in UTF-8)?
+ * The older text columns (names, asset details, usernames) are utf8mb3: they cannot store such a character, and the
+ * database also refuses to compare one against them (error 1267), so a search or sign-in with one must be turned away
+ * before it reaches a query.
+ */
+function has_wide_chars(string ...$texts): bool
+{
+    return preg_match('/[\x{10000}-\x{10FFFF}]/u', implode('', $texts)) === 1;
+}
+
 /** "2025-02-27 00:00:00" -> "2025-02-27"; empty/NULL -> an em dash. */
 function fmt_date(mixed $value): string
 {

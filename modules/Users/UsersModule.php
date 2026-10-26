@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Users;
 
+use App\Core\Auth;
 use App\Core\Module;
 use App\Core\Request;
 use App\Core\Router;
@@ -125,7 +126,9 @@ final class UsersModule extends Module
 
         $where = '1 = 1';
         $params = [];
-        if ($search !== '') {
+        if ($search !== '' && has_wide_chars($search)) {
+            $where = '1 = 0'; // no username or name holds emoji, so nothing can match
+        } elseif ($search !== '') {
             $like = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $search) . '%';
             $where = "(u.username LIKE ? ESCAPE '!' OR u.firstname LIKE ? ESCAPE '!'
                        OR u.lastname LIKE ? ESCAPE '!' OR u.email LIKE ? ESCAPE '!')";
@@ -477,17 +480,21 @@ final class UsersModule extends Module
 
         // ---- validation ----
         $errors = [];
-        if ($f['username'] === '' || strlen($f['username']) > 64 || preg_match('/[\x00-\x1f\x7f]/', $f['username'])) {
+        if ($f['username'] === '' || mb_strlen($f['username']) > 64 || preg_match('/[\x00-\x1f\x7f]/', $f['username'])) {
             $errors[] = 'Enter a username (up to 64 characters, no control characters).';
+        } elseif (has_wide_chars($f['username'])) { // checked first: the database cannot even compare such a value
+            $errors[] = 'Emoji and other special symbols cannot be stored in a username. Please remove them.';
         } elseif (strtolower($f['username']) === self::PLACEHOLDER) {
             $errors[] = 'That username is reserved.';
         } elseif ($db->one('SELECT 1 FROM users WHERE username = ? AND user_id <> ?', [$f['username'], (int) $f['user_id']]) !== null) {
             $errors[] = 'That username belongs to another user.';
         }
-        if (strlen($f['firstname']) > 32 || strlen($f['lastname']) > 32) {
+        if (mb_strlen($f['firstname']) > 32 || mb_strlen($f['lastname']) > 32) {
             $errors[] = 'First and last names can be at most 32 characters.';
+        } elseif (has_wide_chars($f['firstname'], $f['lastname'])) {
+            $errors[] = 'Emoji and other special symbols cannot be stored in a name. Please remove them.';
         }
-        if (strlen($f['email']) > 128 || ($f['email'] !== '' && !filter_var($f['email'], FILTER_VALIDATE_EMAIL))) {
+        if (mb_strlen($f['email']) > 128 || ($f['email'] !== '' && !filter_var($f['email'], FILTER_VALIDATE_EMAIL))) {
             $errors[] = 'Enter a valid email address' . ($canMail ? '.' : ' (or leave it blank).');
         } elseif ($canMail && $f['email'] === '') {
             $errors[] = 'Enter the email address to send the temporary password to.';
@@ -501,6 +508,8 @@ final class UsersModule extends Module
         if (!$temp && ($isNew || $password !== '')) {
             if (strlen($password) < self::MIN_PASSWORD) {
                 $errors[] = 'The password must be at least ' . self::MIN_PASSWORD . ' characters.';
+            } elseif (strlen($password) > Auth::MAX_PASSWORD) {
+                $errors[] = 'The password can be at most ' . Auth::MAX_PASSWORD . ' characters (letters outside A to Z count as more than one).';
             } elseif ($password !== $confirm) {
                 $errors[] = 'The password and its confirmation do not match.';
             }
@@ -527,11 +536,11 @@ final class UsersModule extends Module
                 }
                 $this->app->session->flash('success', 'User "' . $f['username'] . '" ' . ($isNew ? 'created.' : 'saved.'));
                 $this->redirect('/users' . $this->listQs);
-            } catch (\RuntimeException $e) {
-                $errors[] = $e->getMessage();
-            } catch (\PDOException $e) {
+            } catch (\PDOException $e) { // first: PDOException is a RuntimeException, and its text is not for the screen
                 error_log('users save failed: ' . $e->getMessage());
                 $errors[] = 'The user could not be saved because of a database error.';
+            } catch (\RuntimeException $e) {
+                $errors[] = $e->getMessage();
             }
         }
 
@@ -682,6 +691,7 @@ final class UsersModule extends Module
             'timezones'   => \DateTimeZone::listIdentifiers(),
             'canDisable'  => $this->app->auth->supportsDisabling(),
             'minPassword' => self::MIN_PASSWORD,
+            'maxPassword' => Auth::MAX_PASSWORD,
             'temp'        => $existing === null && $this->tempPasswords(),
             'mailReady'   => $existing === null && $this->tempPasswords() && ($this->notifier()?->canMailPeople() ?? false),
             'mustChange'  => $existing !== null && !empty($existing['must_change_password']),

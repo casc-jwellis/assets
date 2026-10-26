@@ -9,6 +9,9 @@ final class Auth
     /** Verified against when the username is unknown, so response time doesn't reveal valid usernames. */
     private const DUMMY_HASH = '$2y$10$Vrjs0nLJzb4XKGGCGfXemeF0rtT4UsHSLdACslO/ErltPwcyVojUW';
 
+    /** Longest password that can be set. Counted in bytes, like the minimum: the password hash only looks at the first 72, so this stays safely inside it. */
+    public const MAX_PASSWORD = 64;
+
     private ?array $user = null;
     private bool $loaded = false;
     private ?bool $canDisable = null;
@@ -106,7 +109,7 @@ final class Auth
 
     public function attempt(string $username, string $password): bool
     {
-        $row = $username === '' ? null : $this->db->one('SELECT * FROM users WHERE username = ?', [$username]);
+        $row = $username === '' || has_wide_chars($username) ? null : $this->db->one('SELECT * FROM users WHERE username = ?', [$username]);
 
         $stored = (string) ($row['password'] ?? self::DUMMY_HASH);
         // Disabled accounts fail exactly like a wrong password (no hint to someone guessing).

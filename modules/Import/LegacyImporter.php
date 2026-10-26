@@ -259,7 +259,8 @@ final class LegacyImporter
             $key = strtolower(rtrim($a['asset_number']));
             if (isset($numbers[$key])) {
                 $old = $a['asset_number'];
-                $a['asset_number'] = mb_substr($old, 0, 26) . '~dup' . $a['asset_id'];
+                $suffix = '~dup' . $a['asset_id'];
+                $a['asset_number'] = mb_substr($old, 0, 32 - strlen($suffix)) . $suffix; // asset_number is varchar(32)
                 $this->fix('asset_number_dup', 'Assets with a repeated asset number were renamed "<number>~dup<id>"', $old . ' -> ' . $a['asset_number']);
                 $key = strtolower($a['asset_number']);
             }

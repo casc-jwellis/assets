@@ -1,7 +1,7 @@
 <?php
 /**
  * Create/edit form. Expects $isNew, $isSelf, $user (row|null), $f (field values), $perms (dept_id => 'r'|'rw'),
- * $errors, $departments, $timezones, $canDisable, $minPassword, $temp (new user: a password is generated and emailed, so
+ * $errors, $departments, $timezones, $canDisable, $minPassword, $maxPassword, $temp (new user: a password is generated and emailed, so
  * none is asked for), $mailReady (new user and email can be sent), $mustChange (edit: still on a temporary password).
  */
 $action = ($isNew ? url('/users/new') : url('/users/' . rawurlencode((string) $f['user_id']))) . $listQs;
@@ -126,12 +126,12 @@ $never = $user === null || $user['lastlogin'] === null || str_starts_with((strin
         <div class="field-row even">
             <div class="field">
                 <label for="password"><?= $isNew ? 'Password' : 'New password' ?></label>
-                <input type="password" id="password" name="password" autocomplete="new-password" minlength="<?= e($minPassword) ?>"<?= $isNew ? ' required' : '' ?>>
-                <small class="muted">At least <?= e($minPassword) ?> characters.</small>
+                <input type="password" id="password" name="password" autocomplete="new-password" minlength="<?= e($minPassword) ?>" maxlength="<?= e($maxPassword) ?>"<?= $isNew ? ' required' : '' ?>>
+                <small class="muted">Between <?= e($minPassword) ?> and <?= e($maxPassword) ?> characters.</small>
             </div>
             <div class="field">
                 <label for="password2">Confirm password</label>
-                <input type="password" id="password2" name="password2" autocomplete="new-password" minlength="<?= e($minPassword) ?>"<?= $isNew ? ' required' : '' ?>>
+                <input type="password" id="password2" name="password2" autocomplete="new-password" minlength="<?= e($minPassword) ?>" maxlength="<?= e($maxPassword) ?>"<?= $isNew ? ' required' : '' ?>>
             </div>
         </div>
     </div>

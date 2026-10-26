@@ -32,7 +32,7 @@ final class Installer
             'admin_pass2'  => (string) $req->post('admin_pass2'),
         ];
 
-        if ($v['app_name'] === '' || strlen($v['app_name']) > 64) {
+        if ($v['app_name'] === '' || mb_strlen($v['app_name']) > 64) {
             $errors[] = 'Enter an application name (up to 64 characters).';
         }
         // Strict patterns also keep ";" and "=" out of the PDO DSN string.
@@ -59,12 +59,19 @@ final class Installer
             }
             if (strlen($v['admin_pass']) < 10) {
                 $errors[] = 'The administrator password must be at least 10 characters.';
+            } elseif (strlen($v['admin_pass']) > Auth::MAX_PASSWORD) {
+                $errors[] = 'The administrator password can be at most ' . Auth::MAX_PASSWORD . ' characters (letters outside A to Z count as more than one).';
             }
             if ($v['admin_pass'] !== $v['admin_pass2']) {
                 $errors[] = 'The administrator passwords do not match.';
             }
-            if ($v['admin_email'] !== '' && !filter_var($v['admin_email'], FILTER_VALIDATE_EMAIL)) {
-                $errors[] = 'Enter a valid administrator email address (or leave it blank).';
+            if ($v['admin_email'] !== '' && (mb_strlen($v['admin_email']) > 128 || !filter_var($v['admin_email'], FILTER_VALIDATE_EMAIL))) {
+                $errors[] = 'Enter a valid administrator email address of up to 128 characters (or leave it blank).';
+            }
+            if (mb_strlen($v['admin_first']) > 32 || mb_strlen($v['admin_last']) > 32) {
+                $errors[] = 'The administrator first and last names can be at most 32 characters.';
+            } elseif (has_wide_chars($v['admin_first'], $v['admin_last'])) {
+                $errors[] = 'Emoji and other special symbols cannot be stored in a name. Please remove them.';
             }
         }
         $v['wants_admin'] = $wantsAdmin;
