@@ -203,6 +203,7 @@ final class AssetsModule extends Module
             'retired'      => $retired,
             'retiredBy'    => $this->userName($asset['retired_by'] ?? null),
             'canEdit'      => $editing && $canWrite && !$retired,
+            'canVerify'    => $editing && !$retired, // anyone who can see it (the page only opens for those)
             'canRetire'    => $editing && $this->retirementReady() && $canWrite && !$retired,
             'canRestore'   => $this->retirementReady() && $retired && $this->app->auth->isAdmin(),
         ]);
@@ -368,12 +369,15 @@ final class AssetsModule extends Module
         return $this->save($req, $this->findEditable((int) $params['id']));
     }
 
-    /** One click "I physically checked this asset today". */
+    /**
+     * One click "I physically checked this asset today". Anyone who can see the asset may do it, read-only access
+     * included: checking that something is where it should be changes nothing about the asset itself.
+     */
     public function verify(Request $req, array $params): never
     {
         $this->rememberList($req);
         $this->requireEditing();
-        $a = $this->findEditable((int) $params['id']);
+        $a = $this->findEditable((int) $params['id'], false);
         $now = date('Y-m-d H:i:s');
         // Deliberately does not bump `version`: it only touches verified_date, which the edit form doesn't carry,
         // so it can't clobber (or be clobbered by) someone's in-progress edit.
@@ -1186,17 +1190,17 @@ final class AssetsModule extends Module
     }
 
     /**
-     * The asset row, if the user may read it (404 otherwise) and write it (403 otherwise).
+     * The asset row, if the user may read it (404 otherwise) and, unless $needWrite is false, write it (403 otherwise).
      * Retired assets are locked: the user is sent back to the asset page with an explanation.
      */
-    private function findEditable(int $id): array
+    private function findEditable(int $id, bool $needWrite = true): array
     {
         [$scope, $params] = $this->app->auth->departmentScope('a.department_id');
         $a = $this->app->db->one("SELECT a.* FROM assets a WHERE a.asset_id = ? AND {$scope}", [$id, ...$params]);
         if ($a === null) {
             $this->app->error(404, 'Asset not found');
         }
-        if (!$this->app->auth->canWrite((int) $a['department_id'])) {
+        if ($needWrite && !$this->app->auth->canWrite((int) $a['department_id'])) {
             $this->app->error(403, 'Access denied', 'You have read-only access to this asset\'s department.');
         }
         if (!empty($a['retired'])) {

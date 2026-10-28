@@ -1,6 +1,6 @@
 <?php
 /** Expects $a (asset row with joined names), $transfers (list), $depreciation (array|null), $updatedBy (string),
- *  $retired (bool), $retiredBy (string), $canEdit, $canRetire, $canRestore (bool), $attachmentsCard (HTML), $listQs (string). */
+ *  $retired (bool), $retiredBy (string), $canEdit, $canVerify, $canRetire, $canRestore (bool), $attachmentsCard (HTML), $listQs (string). */
 $creator = trim(($a['creator_first'] ?? '') . ' ' . ($a['creator_last'] ?? '')) ?: (string) ($a['creator_username'] ?? '');
 $location = trim(($a['building_name'] ?? '') . ($a['room'] !== '' ? ', room ' . $a['room'] : ''), ', ');
 ?>
@@ -19,11 +19,13 @@ $location = trim(($a['building_name'] ?? '') . ($a['room'] !== '' ? ', room ' . 
         <?php else: ?>
             <span class="badge badge-ok">Verified <?= e(fmt_date($a['verified_date'])) ?></span>
         <?php endif; ?>
-        <?php if ($canEdit): ?>
+        <?php if ($canVerify): ?>
             <form method="post" action="<?= e(url('/assets/' . (int) $a['asset_id'] . '/verify') . $listQs) ?>" class="inline-form">
                 <?= csrf_field() ?>
                 <button type="submit" class="btn" title="Record that this asset was physically checked today">Mark verified</button>
             </form>
+        <?php endif; ?>
+        <?php if ($canEdit): ?>
             <a class="btn" href="<?= e(url('/assets/' . (int) $a['asset_id'] . '/edit') . $listQs) ?>">Edit</a>
         <?php endif; ?>
         <?php if ($canRetire): ?>

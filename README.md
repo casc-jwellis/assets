@@ -197,3 +197,4 @@ departments a user has access to (admins see everything). New icons go in `src/C
 - **XSS**: all output goes through `e()` (`htmlspecialchars`, `ENT_QUOTES`, UTF-8); CSP forbids inline styles and un-nonced scripts.
 - **Passwords**: `password_hash()` / `password_verify()`; unknown usernames take the same code path as bad passwords.
 - **Sessions**: HttpOnly + SameSite=Lax cookie, strict mode, ID regenerated on login, idle timeout (default 30 min).
+- **Department access**: Read lets a user see a department's assets and mark them verified ("Mark verified" records who and when, and changes nothing else); Read & write also allows adding, editing, transferring and retiring. Retired assets cannot be verified.

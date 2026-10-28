@@ -139,7 +139,7 @@ $never = $user === null || $user['lastlogin'] === null || str_starts_with((strin
 
     <div class="card form-card wide section">
         <div class="card-head"><h2>Department access</h2></div>
-        <p class="muted small perm-note">Controls which departments' assets this person can see (Read) and change (Read &amp; write). Administrators can access every department regardless.</p>
+        <p class="muted small perm-note">Controls which departments' assets this person can see and mark verified (Read) and also change (Read &amp; write). Administrators can access every department regardless.</p>
         <div class="table-wrap">
             <table class="table perm-table" data-perm-table>
                 <thead><tr><th>Department</th><th class="center">None</th><th class="center">Read</th><th class="center">Read &amp; write</th></tr></thead>
