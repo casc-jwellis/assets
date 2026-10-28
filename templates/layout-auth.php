@@ -10,9 +10,7 @@ $flashes = app()->session->pullFlashes();
 <body class="auth-body">
 <div class="auth-theme"><?php require __DIR__ . '/partials-theme-toggle.php'; ?></div>
 <main class="auth-wrap<?= !empty($wide) ? ' auth-wide' : '' ?>">
-    <?php foreach ($flashes as $f): ?>
-        <div class="alert alert-<?= e($f['type']) ?>" role="status"><?= e($f['message']) ?></div>
-    <?php endforeach; ?>
+    <?php require __DIR__ . '/partials-flashes.php'; /* toasts: see app.js */ ?>
     <?= $content /* already-rendered, escaped template output */ ?>
 </main>
 </body>

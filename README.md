@@ -155,6 +155,10 @@ For local development: `php -S localhost:8000 -t public public/index.php`
    `['pending_ok' => true]` are the exception.)
 5. Handler runs and returns the HTML
 
+## Messages (toasts)
+
+A message for the person who just did something ($this->app->session->flash('success', 'Saved.'); types are `success`, `info`, `warning` and `danger`) is shown on the next page as a toast at the top of the screen that fades by itself: success after 5 seconds, info 6, warning and error 8. Hovering over one pauses it, there is a close button, and at most five show at once. The text travels as inert JSON in the page and is added with `textContent`, so it can never act as HTML; with scripting off the same messages show as plain boxes. Messages that belong to a form (a validation error above the fields you are fixing) are ordinary boxes in the page and are not toasts. From scripts, `window.toast(type, message)` shows one.
+
 ## Adding a module (new tab)
 
 Create `modules/Reports/ReportsModule.php`. That's it — modules are auto-discovered.

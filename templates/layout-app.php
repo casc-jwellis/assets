@@ -49,9 +49,7 @@ $flashes = app()->session->pullFlashes();
         </header>
 
         <main class="content">
-            <?php foreach ($flashes as $f): ?>
-                <div class="alert alert-<?= e($f['type']) ?>" role="status"><?= e($f['message']) ?></div>
-            <?php endforeach; ?>
+            <?php require __DIR__ . '/partials-flashes.php'; /* toasts: see app.js */ ?>
             <?= $content /* already-rendered, escaped template output */ ?>
         </main>
     </div>

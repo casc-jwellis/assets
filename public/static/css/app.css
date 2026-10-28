@@ -543,3 +543,35 @@ code { font-size: .88em; background: var(--surface-2); padding: 1px 5px; border-
 
 .perm-all td { background: var(--surface-2); }
 .perm-all[hidden] { display: none; }
+
+/* ----- Toasts (messages after an action; see app.js and templates/partials-flashes.php) ----- */
+.toasts {
+    position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+    z-index: 1000; display: flex; flex-direction: column; gap: 8px;
+    width: min(520px, calc(100vw - 24px)); pointer-events: none;
+}
+.toast {
+    pointer-events: auto; position: relative; overflow: hidden;
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px 12px 12px 14px; border: 1px solid; border-radius: 10px;
+    background: var(--surface); box-shadow: 0 8px 24px rgb(16 24 40 / 18%), 0 2px 6px rgb(16 24 40 / 10%);
+    font-size: .92rem; line-height: 1.4;
+    animation: toast-in .22s ease-out;
+}
+.toast.is-leaving { animation: toast-out .2s ease-in forwards; }
+.toast-icon { flex: none; width: 20px; height: 20px; margin-top: 1px; display: grid; place-items: center; border-radius: 50%; font-size: .75rem; font-weight: 700; color: #fff; }
+.toast-msg { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--text); }
+.toast-close { flex: none; border: 0; background: transparent; color: var(--muted); font-size: 1.2rem; line-height: 1; padding: 0 4px; cursor: pointer; border-radius: 6px; }
+.toast-close:hover { color: var(--text); background: var(--surface-2); }
+.toast-bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; transform-origin: left; animation: toast-bar linear forwards; }
+
+.toast-success { border-color: var(--success-border); } .toast-success .toast-icon, .toast-success .toast-bar { background: var(--success); }
+.toast-info    { border-color: var(--info-border); }    .toast-info .toast-icon,    .toast-info .toast-bar    { background: var(--info); }
+.toast-warning { border-color: var(--warn); }           .toast-warning .toast-icon, .toast-warning .toast-bar { background: var(--warn); }
+.toast-danger  { border-color: var(--danger-border); }  .toast-danger .toast-icon,  .toast-danger .toast-bar  { background: var(--danger); }
+:root[data-theme="dark"] .toast-icon { color: #0d1117; }
+
+@keyframes toast-in  { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
+@keyframes toast-out { to   { opacity: 0; transform: translateY(-12px); } }
+@keyframes toast-bar { to   { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) { .toast, .toast.is-leaving { animation-duration: 1ms; } .toast-bar { display: none; } }

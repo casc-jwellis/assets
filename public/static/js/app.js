@@ -191,6 +191,98 @@
         sync();
     });
 
+    // ----- Toasts: messages from the previous request (and window.toast) that fade away on their own -----
+    // The server leaves them as JSON in <script type="application/json" id="flash-data"> (templates/partials-flashes.php),
+    // shown inside <div id="toasts">. Text is always set with textContent, never as HTML. The bar along the bottom is the
+    // time left; hovering or focusing a toast pauses it, as does the tab being in the background.
+    (function () {
+        var box = document.getElementById('toasts');
+        if (!box) { return; }
+        var ICON = { success: '✓', info: 'i', warning: '!', danger: '×' };
+        var LABEL = { success: 'Success', info: 'Information', warning: 'Warning', danger: 'Error' };
+        var MS = { success: 5000, info: 6000, warning: 8000, danger: 8000 };
+        var MAX = 5; // never more than this many on screen at once; the oldest goes first
+
+        function toast(type, message) {
+            if (!ICON[type]) { type = 'info'; }
+            var el = document.createElement('div');
+            el.className = 'toast toast-' + type;
+            el.setAttribute('role', type === 'danger' ? 'alert' : 'status');
+
+            var icon = document.createElement('span');
+            icon.className = 'toast-icon';
+            icon.setAttribute('aria-hidden', 'true');
+            icon.textContent = ICON[type];
+
+            var msg = document.createElement('div');
+            msg.className = 'toast-msg';
+            var kind = document.createElement('span');
+            kind.className = 'sr-only';
+            kind.textContent = LABEL[type] + ': ';
+            msg.appendChild(kind);
+            msg.appendChild(document.createTextNode(String(message)));
+
+            var close = document.createElement('button');
+            close.type = 'button';
+            close.className = 'toast-close';
+            close.setAttribute('aria-label', 'Dismiss');
+            close.textContent = '×';
+
+            var bar = document.createElement('div');
+            bar.className = 'toast-bar';
+            bar.style.animationDuration = MS[type] + 'ms';
+
+            el.appendChild(icon);
+            el.appendChild(msg);
+            el.appendChild(close);
+            el.appendChild(bar);
+
+            var left = MS[type], started = 0, timer = null, leaving = false;
+            function leave() {
+                if (leaving) { return; }
+                leaving = true;
+                clearTimeout(timer);
+                el.classList.add('is-leaving');
+                setTimeout(function () { if (el.parentNode) { el.parentNode.removeChild(el); } }, 220);
+            }
+            function run() {
+                if (leaving || timer !== null) { return; }
+                started = Date.now();
+                timer = setTimeout(leave, left);
+                bar.style.animationPlayState = 'running';
+            }
+            function pause() {
+                if (timer === null) { return; }
+                clearTimeout(timer);
+                timer = null;
+                left = Math.max(600, left - (Date.now() - started));
+                bar.style.animationPlayState = 'paused';
+            }
+            var holding = false;
+            function hold(on) { holding = on; if (on || document.hidden) { pause(); } else { run(); } }
+            el.addEventListener('mouseenter', function () { hold(true); });
+            el.addEventListener('mouseleave', function () { hold(false); });
+            el.addEventListener('focusin', function () { hold(true); });
+            el.addEventListener('focusout', function () { hold(false); });
+            document.addEventListener('visibilitychange', function () { if (document.hidden) { pause(); } else if (!holding) { run(); } });
+            close.addEventListener('click', leave);
+
+            box.appendChild(el);
+            while (box.children.length > MAX) { box.removeChild(box.firstChild); }
+            if (!document.hidden) { run(); } else { bar.style.animationPlayState = 'paused'; }
+        }
+        window.toast = toast;
+
+        var data = document.getElementById('flash-data');
+        if (data) {
+            try {
+                JSON.parse(data.textContent).forEach(function (f) { toast(f.type, f.message); });
+            } catch (e) { /* unreadable: the <noscript> copy does not show with scripting on, so say it plainly */
+                toast('info', 'A message for you could not be shown.');
+            }
+        }
+    })();
+
     // ----- Mobile sidebar -----
     var body = document.body;
     document.querySelectorAll('[data-nav-toggle]').forEach(function (btn) {
