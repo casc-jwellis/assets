@@ -14,7 +14,7 @@ namespace App\Core;
  *   routes(Router $router)  register URLs
  *   nav(): array            sidebar entries, e.g.
  *                           [['label' => 'Assets', 'path' => '/assets', 'icon' => 'box', 'order' => 20]]
- *                           add 'admin' => true to show it to admins only
+ *                           add 'admin' => true to show it to admins only, or 'manager' => true for admins and Asset Managers
  *
  * Templates live in modules/<Name>/views/ and are rendered with $this->render().
  */

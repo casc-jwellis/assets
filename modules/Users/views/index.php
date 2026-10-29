@@ -107,6 +107,8 @@ $never = static fn($v): bool => $v === null || $v === '' || str_starts_with((str
                         <td>
                             <?php if ($r['admin']): ?>
                                 <span class="badge badge-accent">Admin</span>
+                            <?php elseif (!empty($r['manager'])): ?>
+                                <span class="badge badge-accent">Asset manager</span>
                             <?php else: ?>
                                 <span class="muted"><?= e((int) $r['dept_count']) ?> <?= (int) $r['dept_count'] === 1 ? 'dept' : 'depts' ?></span>
                             <?php endif; ?>

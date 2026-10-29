@@ -21,6 +21,8 @@ final class UsersModule extends Module
 
     /** Adds users.must_change_password. From then on a new user gets a generated, emailed temporary password. */
     private const TEMP_MIGRATION = '017_users_must_change_password.sql';
+    /** Adds users.manager (the Asset Manager role). Until it is applied there is no such role. */
+    private const MANAGER_MIGRATION = '018_users_manager.sql';
     /** No 0/O/1/l/I: people retype this from an email. 14 characters of 54 is about 80 bits. */
     private const TEMP_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
     private const TEMP_LENGTH = 14;
@@ -30,22 +32,24 @@ final class UsersModule extends Module
 
     public function routes(Router $router): void
     {
+        // Asset Managers may manage ordinary accounts; merging two accounts moves history and stays with administrators.
+        $manager = ['manager' => true];
         $admin = ['admin' => true];
-        $router->get('/users', [$this, 'index'], $admin);
+        $router->get('/users', [$this, 'index'], $manager);
         // Fixed path first: "new" would also match the {uid} pattern below.
-        $router->get('/users/new', [$this, 'showNew'], $admin);
-        $router->post('/users/new', [$this, 'create'], $admin);
-        $router->get('/users/{uid:' . self::ID . '}', [$this, 'showEdit'], $admin);
-        $router->post('/users/{uid:' . self::ID . '}', [$this, 'update'], $admin);
-        $router->post('/users/{uid:' . self::ID . '}/disable', [$this, 'disable'], $admin);
-        $router->post('/users/{uid:' . self::ID . '}/enable', [$this, 'enable'], $admin);
+        $router->get('/users/new', [$this, 'showNew'], $manager);
+        $router->post('/users/new', [$this, 'create'], $manager);
+        $router->get('/users/{uid:' . self::ID . '}', [$this, 'showEdit'], $manager);
+        $router->post('/users/{uid:' . self::ID . '}', [$this, 'update'], $manager);
+        $router->post('/users/{uid:' . self::ID . '}/disable', [$this, 'disable'], $manager);
+        $router->post('/users/{uid:' . self::ID . '}/enable', [$this, 'enable'], $manager);
         $router->get('/users/{uid:' . self::ID . '}/merge', [$this, 'showMerge'], $admin);
         $router->post('/users/{uid:' . self::ID . '}/merge', [$this, 'merge'], $admin);
     }
 
     public function nav(): array
     {
-        return [['label' => 'Users', 'path' => '/users', 'icon' => 'users', 'order' => 80, 'admin' => true]];
+        return [['label' => 'Users', 'path' => '/users', 'icon' => 'users', 'order' => 80, 'manager' => true]];
     }
 
     // ---- list ----
@@ -140,6 +144,11 @@ final class UsersModule extends Module
             $where .= ' AND u.disabled = 1';
         }
 
+        if (!$this->app->auth->isAdmin()) { // an Asset Manager sees ordinary accounts only: no administrators, managers or the placeholder
+            $where .= ' AND u.admin = 0 AND u.manager = 0 AND u.username <> ?';
+            $params[] = self::PLACEHOLDER;
+        }
+
         $total = (int) $db->value("SELECT COUNT(*) FROM users u WHERE {$where}", $params);
         $pages = max(1, (int) ceil($total / self::PER_PAGE));
         $page = min($page, $pages);
@@ -149,12 +158,17 @@ final class UsersModule extends Module
         // The chosen column in the chosen direction, then name order A to Z so rows with equal values keep a
         // stable order (and do not shuffle between pages).
         $direction = strtoupper($dir);
+        $sortColumns = self::SORTS[$sort];
+        if ($sort === 'role' && $this->managerReady()) {
+            array_splice($sortColumns, 1, 0, 'u.manager'); // administrators, then managers, then by number of departments
+        }
         $order = implode(', ', [
-            ...array_map(static fn(string $c): string => "{$c} {$direction}", self::SORTS[$sort]),
+            ...array_map(static fn(string $c): string => "{$c} {$direction}", $sortColumns),
             'u.lastname ASC', 'u.firstname ASC', 'u.username ASC', 'u.user_id ASC',
         ]);
 
         $cols = 'u.user_id, u.username, u.firstname, u.lastname, u.email, u.admin, u.lastlogin, d.abbr AS dept'
+            . ($this->managerReady() ? ', u.manager' : '')
             . ($this->app->auth->supportsDisabling() ? ', u.disabled' : '');
         $rows = $db->all(
             "SELECT {$cols},
@@ -396,7 +410,7 @@ final class UsersModule extends Module
         $this->rememberList($req);
         return $this->form(null, [
             'user_id' => null, 'username' => '', 'firstname' => '', 'lastname' => '', 'email' => '',
-            'department_id' => 0, 'timezone' => 'UTC', 'admin' => false, 'disabled' => false,
+            'department_id' => 0, 'timezone' => 'UTC', 'admin' => false, 'manager' => false, 'disabled' => false,
         ], [], []);
     }
 
@@ -418,6 +432,7 @@ final class UsersModule extends Module
             'department_id' => (int) $user['department_id'],
             'timezone'      => $user['timezone'],
             'admin'         => (bool) $user['admin'],
+            'manager'       => !$user['admin'] && !empty($user['manager']),
             'disabled'      => !empty($user['disabled']),
         ], $perms, []);
     }
@@ -454,12 +469,22 @@ final class UsersModule extends Module
             'email'         => trim((string) $req->post('email')),
             'department_id' => (int) $req->post('department_id'),
             'timezone'      => (string) $req->post('timezone'),
-            'admin'         => $req->post('admin') === '1',
+            'admin'         => false,
+            'manager'       => false,
             // Disabling and re-enabling have their own buttons; saving the form never changes it.
             'disabled'      => !$isNew && !empty($existing['disabled']),
         ];
+        // The role is the administrator's to give. An Asset Manager only ever handles ordinary accounts (find() has
+        // already refused any other), so whatever is posted, the account stays ordinary.
+        $actorAdmin = $auth->isAdmin();
+        if ($actorAdmin) {
+            $role = (string) $req->post('role');
+            $f['admin'] = $role === 'admin';
+            $f['manager'] = $role === 'manager' && $this->managerReady();
+        }
         if ($isSelf) { // you can't remove your own admin access; the form doesn't offer it for your own account
             $f['admin'] = true;
+            $f['manager'] = false;
         }
         $password = (string) $req->post('password');
         $confirm = (string) $req->post('password2');
@@ -472,9 +497,17 @@ final class UsersModule extends Module
         $deptIds = array_map('intval', array_column($departments, 'department_id'));
         $perms = [];
         $posted = $req->postArray('perm');
+        $lockedRw = $actorAdmin ? [] : $this->readWriteDepartments($isNew ? 0 : (int) $existing['user_id']);
+        $tooMuch = false;
         foreach ($deptIds as $id) {
-            if (in_array($posted[(string) $id] ?? '', ['r', 'rw'], true)) {
+            if (in_array($id, $lockedRw, true)) { // given by an administrator: an Asset Manager cannot change it
+                $perms[$id] = 'rw';
+            } elseif (in_array($posted[(string) $id] ?? '', ['r', 'rw'], true)) {
                 $perms[$id] = $posted[(string) $id];
+                if (!$actorAdmin && $perms[$id] === 'rw') {
+                    $tooMuch = true;
+                    $perms[$id] = 'r';
+                }
             }
         }
 
@@ -513,6 +546,9 @@ final class UsersModule extends Module
             } elseif ($password !== $confirm) {
                 $errors[] = 'The password and its confirmation do not match.';
             }
+        }
+        if ($tooMuch) {
+            $errors[] = 'You can give Read access only; Read & write is set by an administrator.';
         }
         // Never leave the system without an active administrator.
         if (!$isNew && $existing['admin'] && empty($existing['disabled']) && !$f['admin']) {
@@ -564,17 +600,19 @@ final class UsersModule extends Module
             if ($isNew) {
                 // user_id is auto-incremented. lastlogin is NOT NULL: the epoch means "never signed in".
                 // A hash is always supplied, so the column's weak legacy default password can never apply.
+                $withManager = $this->managerReady();
                 $db->execute(
                     'INSERT INTO users (username, password, firstname, lastname, email, department_id, admin, timezone, lastlogin'
-                    . ($mustChange ? ', must_change_password' : '') . ')
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?' . ($mustChange ? ', 1' : '') . ')',
+                    . ($mustChange ? ', must_change_password' : '') . ($withManager ? ', manager' : '') . ')
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?' . ($mustChange ? ', 1' : '') . ($withManager ? ', ' . (int) $f['manager'] : '') . ')',
                     [$f['username'], $hash, $f['firstname'], $f['lastname'], $f['email'],
                      $f['department_id'], (int) $f['admin'], $f['timezone'], '1970-01-01 00:00:00']
                 );
                 $f['user_id'] = (int) $pdo->lastInsertId();
             } else {
                 $db->execute(
-                    'UPDATE users SET username = ?, firstname = ?, lastname = ?, email = ?, department_id = ?, admin = ?, timezone = ?
+                    'UPDATE users SET username = ?, firstname = ?, lastname = ?, email = ?, department_id = ?, admin = ?, timezone = ?'
+                    . ($this->managerReady() ? ', manager = ' . (int) $f['manager'] : '') . '
                       WHERE user_id = ?',
                     [$f['username'], $f['firstname'], $f['lastname'], $f['email'], $f['department_id'],
                      (int) $f['admin'], $f['timezone'], $f['user_id']]
@@ -650,6 +688,30 @@ final class UsersModule extends Module
 
     // ---- helpers ----
 
+    /** Is migration 018 applied? Until it is, there is no Asset Manager role to give. */
+    private function managerReady(): bool
+    {
+        return $this->app->migrationApplied(self::MANAGER_MIGRATION);
+    }
+
+    /** May the signed-in person manage this account? Administrators: any. Asset Managers: ordinary accounts only. */
+    private function canManage(array $user): bool
+    {
+        return $this->app->auth->isAdmin() || (empty($user['admin']) && empty($user['manager']));
+    }
+
+    /** @return list<int> the departments in which this user has Read & write (none for a user not yet created) */
+    private function readWriteDepartments(int $userId): array
+    {
+        if ($userId < 1) {
+            return [];
+        }
+        return array_map('intval', array_column(
+            $this->app->db->all("SELECT department_id FROM permissions WHERE user_id = ? AND permission = 'rw'", [$userId]),
+            'department_id'
+        ));
+    }
+
     /** @return array<string,mixed> the user row (without password); 404 if there is none */
     private function find(int $userId): array
     {
@@ -658,6 +720,9 @@ final class UsersModule extends Module
             $this->app->error(404, 'User not found');
         }
         unset($user['password']);
+        if (!$this->canManage($user)) {
+            $this->app->error(403, 'Access denied', 'Asset Managers can manage ordinary accounts only, not administrators or other Asset Managers.');
+        }
         return $user;
     }
 
@@ -692,10 +757,13 @@ final class UsersModule extends Module
             'canDisable'  => $this->app->auth->supportsDisabling(),
             'minPassword' => self::MIN_PASSWORD,
             'maxPassword' => Auth::MAX_PASSWORD,
+            'actorAdmin'  => $this->app->auth->isAdmin(),
+            'managerReady' => $this->managerReady(),
+            'lockedRw'    => $this->app->auth->isAdmin() || $existing === null ? [] : $this->readWriteDepartments((int) $existing['user_id']),
             'temp'        => $existing === null && $this->tempPasswords(),
             'mailReady'   => $existing === null && $this->tempPasswords() && ($this->notifier()?->canMailPeople() ?? false),
             'mustChange'  => $existing !== null && !empty($existing['must_change_password']),
-            'mergeTargets' => $existing === null ? [] : $this->app->db->all(
+            'mergeTargets' => $existing === null || !$this->app->auth->isAdmin() ? [] : $this->app->db->all(
                 'SELECT user_id, username, firstname, lastname' . ($this->app->auth->supportsDisabling() ? ', disabled' : '')
                 . ' FROM users WHERE user_id <> ? AND username <> ? ORDER BY username',
                 [$existing['user_id'], self::PLACEHOLDER]

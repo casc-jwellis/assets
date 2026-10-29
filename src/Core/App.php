@@ -125,6 +125,9 @@ final class App
         if (!empty($match['opts']['admin']) && !$this->auth->isAdmin()) {
             $this->error(403, 'Access denied', 'You do not have permission to view this page.');
         }
+        if (!empty($match['opts']['manager']) && !$this->auth->isAdminOrManager()) {
+            $this->error(403, 'Access denied', 'You do not have permission to view this page.');
+        }
 
         echo ($match['handler'])($req, $match['params']);
     }
@@ -139,13 +142,16 @@ final class App
             ??= (new Migrator($this->db, APP_ROOT . '/migrations'))->isApplied($name);
     }
 
-    /** @return list<array{label:string,path:string,icon:string,order:int,admin:bool}> nav entries visible to the current user */
+    /** @return list<array{label:string,path:string,icon:string,order:int,admin:bool,manager?:bool}> nav entries visible to the current user */
     public function navItems(): array
     {
         $items = [];
         foreach ($this->modules as $module) {
             foreach ($module->nav() as $item) {
                 if (!empty($item['admin']) && !$this->auth->isAdmin()) {
+                    continue;
+                }
+                if (!empty($item['manager']) && !$this->auth->isAdminOrManager()) {
                     continue;
                 }
                 $items[] = $item + ['icon' => 'box', 'order' => 100, 'admin' => false];

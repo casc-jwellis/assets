@@ -62,6 +62,8 @@ final class Auth
         }
         unset($row['password']); // never keep the hash around
         $row['admin'] = (bool) $row['admin'];
+        // An Asset Manager (migration 018); an administrator is never also one. Reads as false before the migration.
+        $row['manager'] = !$row['admin'] && !empty($row['manager']);
         $row['disabled'] = false;
         $this->session->set('auth.seen', time());
         return $this->user = $row;
@@ -105,6 +107,24 @@ final class Auth
     public function isAdmin(): bool
     {
         return (bool) ($this->user()['admin'] ?? false);
+    }
+
+    /** An Asset Manager: every department's assets, plus managing ordinary user accounts. Not an administrator. */
+    public function isManager(): bool
+    {
+        return (bool) ($this->user()['manager'] ?? false);
+    }
+
+    /** Administrators and Asset Managers may use the pages flagged ['manager' => true] (user management). */
+    public function isAdminOrManager(): bool
+    {
+        return $this->isAdmin() || $this->isManager();
+    }
+
+    /** Does this person see and change the assets of every department, whatever the department access table says? */
+    public function hasAllDepartments(): bool
+    {
+        return $this->isAdminOrManager();
     }
 
     public function attempt(string $username, string $password): bool
@@ -182,7 +202,7 @@ final class Auth
 
     /**
      * SQL fragment limiting rows to departments the user may read.
-     * Admins are unrestricted. $column must be a trusted identifier, never user input.
+     * Admins and Asset Managers are unrestricted. $column must be a trusted identifier, never user input.
      *
      * @return array{0:string, 1:list<mixed>} [sql, params]
      */
@@ -192,7 +212,7 @@ final class Auth
         if ($user === null) {
             return ['1 = 0', []];
         }
-        if ($user['admin']) {
+        if ($user['admin'] || $user['manager']) {
             return ['1 = 1', []];
         }
         $ids = array_map('intval', array_column(
@@ -210,7 +230,7 @@ final class Auth
 
     /**
      * Departments the user may change assets in ('rw' permission).
-     * Returns null for administrators, meaning every department.
+     * Returns null for administrators and Asset Managers, meaning every department.
      *
      * @return list<int>|null
      */
@@ -220,7 +240,7 @@ final class Auth
             $user = $this->user();
             if ($user === null) {
                 $this->writable = [];
-            } elseif ($user['admin']) {
+            } elseif ($user['admin'] || $user['manager']) {
                 $this->writable = null;
             } else {
                 $this->writable = array_map('intval', array_column($this->db->all(

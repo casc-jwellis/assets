@@ -167,7 +167,7 @@
         var allRow = table.querySelector('[data-perm-all]');
         if (!allRow) { return; }
         var masters = allRow.querySelectorAll('input[data-perm-all-level]');
-        var rows = function () { return table.querySelectorAll('input[type="radio"][name^="perm["]'); };
+        var rows = function () { return table.querySelectorAll('input[type="radio"][name^="perm["]:not(:disabled)'); };
 
         // The master radio is ticked only while every department has the same level.
         function sync() {

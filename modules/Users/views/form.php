@@ -2,8 +2,12 @@
 /**
  * Create/edit form. Expects $isNew, $isSelf, $user (row|null), $f (field values), $perms (dept_id => 'r'|'rw'),
  * $errors, $departments, $timezones, $canDisable, $minPassword, $maxPassword, $temp (new user: a password is generated and emailed, so
- * none is asked for), $mailReady (new user and email can be sent), $mustChange (edit: still on a temporary password).
+ * none is asked for), $mailReady (new user and email can be sent), $mustChange (edit: still on a temporary password),
+ * $actorAdmin (an administrator is signed in; otherwise an Asset Manager: no role choice, Read access only),
+ * $managerReady (the Asset Manager role exists), $lockedRw (departments where an administrator gave this user Read & write,
+ * which an Asset Manager cannot change).
  */
+$role = $f['admin'] ? 'admin' : (!empty($f['manager']) ? 'manager' : '');
 $action = ($isNew ? url('/users/new') : url('/users/' . rawurlencode((string) $f['user_id']))) . $listQs;
 $back = url('/users') . $listQs;
 $never = $user === null || $user['lastlogin'] === null || str_starts_with((string) $user['lastlogin'], '0000') || str_starts_with((string) $user['lastlogin'], '1970-01-01');
@@ -101,10 +105,22 @@ $never = $user === null || $user['lastlogin'] === null || str_starts_with((strin
             </div>
         </div>
 
-        <label class="check">
-            <input type="checkbox" name="admin" value="1"<?= $f['admin'] ? ' checked' : '' ?><?= $isSelf ? ' disabled' : '' ?>>
-            <span><strong>Administrator</strong>: full access to every department, users and migrations<?= $isSelf ? ' (you cannot change your own)' : '' ?></span>
-        </label>
+        <?php if ($actorAdmin): ?>
+            <div class="field">
+                <label for="role">Role</label>
+                <select id="role" name="role"<?= $isSelf ? ' disabled' : '' ?>>
+                    <option value=""<?= $role === '' ? ' selected' : '' ?>>User: only the departments chosen below</option>
+                    <?php if ($managerReady || $role === 'manager'): ?>
+                        <option value="manager"<?= $role === 'manager' ? ' selected' : '' ?>>Asset Manager: every department's assets, and manages ordinary user accounts</option>
+                    <?php endif; ?>
+                    <option value="admin"<?= $role === 'admin' ? ' selected' : '' ?>>Administrator: everything, including migrations, theme, email and import</option>
+                </select>
+                <?php if ($isSelf): ?><small class="muted">You cannot change your own role.</small><?php endif; ?>
+                <?php if (!$managerReady): ?><small class="muted">Apply the latest migrations (Migrations page) to add the Asset Manager role.</small><?php endif; ?>
+            </div>
+        <?php else: ?>
+            <p class="muted small">This will be an ordinary user account. Department access you give is Read only (see and mark verified).</p>
+        <?php endif; ?>
     </div>
 
     <?php if ($temp): ?>
@@ -139,15 +155,15 @@ $never = $user === null || $user['lastlogin'] === null || str_starts_with((strin
 
     <div class="card form-card wide section">
         <div class="card-head"><h2>Department access</h2></div>
-        <p class="muted small perm-note">Controls which departments' assets this person can see and mark verified (Read) and also change (Read &amp; write). Administrators can access every department regardless.</p>
+        <p class="muted small perm-note">Controls which departments' assets this person can see and mark verified (Read)<?= $actorAdmin ? ' and also change (Read &amp; write)' : '' ?>. Administrators and Asset Managers can access every department regardless.<?= $actorAdmin ? '' : ' Read &amp; write is set by an administrator.' ?></p>
         <div class="table-wrap">
             <table class="table perm-table" data-perm-table>
-                <thead><tr><th>Department</th><th class="center">None</th><th class="center">Read</th><th class="center">Read &amp; write</th></tr></thead>
+                <thead><tr><th>Department</th><th class="center">None</th><th class="center">Read</th><?php if ($actorAdmin): ?><th class="center">Read &amp; write</th><?php endif; ?></tr></thead>
                 <tbody>
                 <?php /* Shown by app.js (it needs the script to do anything); the radios have no name, so they are never submitted. */ ?>
                 <tr class="perm-all" data-perm-all hidden>
                     <td><strong>All departments</strong></td>
-                    <?php foreach (['' => 'No access to', 'r' => 'Read access to', 'rw' => 'Read and write access to'] as $lv => $what): ?>
+                    <?php foreach (['' => 'No access to', 'r' => 'Read access to'] + ($actorAdmin ? ['rw' => 'Read and write access to'] : []) as $lv => $what): ?>
                         <td class="center"><input type="radio" data-perm-all-level="<?= e($lv) ?>" aria-label="<?= e($what) ?> every department"></td>
                     <?php endforeach; ?>
                 </tr>
@@ -155,9 +171,15 @@ $never = $user === null || $user['lastlogin'] === null || str_starts_with((strin
                     <?php $id = (int) $d['department_id']; $level = $perms[$id] ?? ''; ?>
                     <tr>
                         <td><span class="badge"><?= e($d['abbr']) ?></span> <?= e($d['name']) ?></td>
-                        <td class="center"><input type="radio" name="perm[<?= e($id) ?>]" value=""<?= $level === '' ? ' checked' : '' ?> aria-label="No access to <?= e($d['name']) ?>"></td>
-                        <td class="center"><input type="radio" name="perm[<?= e($id) ?>]" value="r"<?= $level === 'r' ? ' checked' : '' ?> aria-label="Read access to <?= e($d['name']) ?>"></td>
-                        <td class="center"><input type="radio" name="perm[<?= e($id) ?>]" value="rw"<?= $level === 'rw' ? ' checked' : '' ?> aria-label="Read and write access to <?= e($d['name']) ?>"></td>
+                        <?php if (in_array($id, $lockedRw, true)): ?>
+                            <td class="muted small" colspan="2">Read &amp; write (set by an administrator)</td>
+                        <?php else: ?>
+                            <td class="center"><input type="radio" name="perm[<?= e($id) ?>]" value=""<?= $level === '' ? ' checked' : '' ?> aria-label="No access to <?= e($d['name']) ?>"></td>
+                            <td class="center"><input type="radio" name="perm[<?= e($id) ?>]" value="r"<?= $level === 'r' ? ' checked' : '' ?> aria-label="Read access to <?= e($d['name']) ?>"></td>
+                            <?php if ($actorAdmin): ?>
+                                <td class="center"><input type="radio" name="perm[<?= e($id) ?>]" value="rw"<?= $level === 'rw' ? ' checked' : '' ?> aria-label="Read and write access to <?= e($d['name']) ?>"></td>
+                            <?php endif; ?>
+                        <?php endif; ?>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
@@ -171,7 +193,7 @@ $never = $user === null || $user['lastlogin'] === null || str_starts_with((strin
     </div>
 </form>
 
-<?php if (!$isNew && !$isSelf && !empty($mergeTargets)): ?>
+<?php if (!$isNew && !$isSelf && !empty($mergeTargets)): /* (empty for an Asset Manager: merging stays with administrators) */ ?>
     <?php parse_str(ltrim((string) $listQs, '?'), $keep); /* carry the list's search/page/status through the picker */ ?>
     <form method="get" action="<?= e(url('/users/' . rawurlencode((string) $f['user_id']) . '/merge')) ?>" class="card form-card wide section" autocomplete="off">
         <h2>Merge into another user</h2>

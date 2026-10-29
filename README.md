@@ -106,6 +106,24 @@ address, who receives the emails (one address per line), and the public address 
   Mail is sent by the bundled library in `lib/tehsmtp/` (a pure-PHP SMTP client; nothing to install). To remove the feature,
   delete `modules/Email` (the library can stay or go).
 
+### Roles: User, Asset Manager, Administrator
+
+An administrator sets a person's **Role** on their user page (migration `018` adds the Asset Manager role).
+
+| | User | Asset Manager | Administrator |
+|---|---|---|---|
+| Assets | only departments in their access list (Read: see and mark verified; Read & write: also add, edit, transfer, retire) | **every department**, Read & write, including retiring and attachments | everything |
+| Restore a retired asset, change an asset number | no | no | yes |
+| User accounts | no | create, edit, reset passwords, disable and re-enable **ordinary accounts only** | all accounts, and merging |
+| Department access they can give | n/a | **Read only** (None or Read) | None, Read, Read & write |
+| Role of an account they create | n/a | always an ordinary user | any |
+| Theme, Email, Reference data, Migrations, Import | no | no | yes |
+
+An Asset Manager sees no administrators or other Asset Managers in the user list and gets "Access denied" if they open
+one by address. Where an administrator gave a user Read & write on a department, an Asset Manager sees it as locked text:
+they cannot remove it or add another. They cannot change roles, make anyone an administrator or manager, or merge
+accounts, whatever they send. An account marked as both is an administrator. Until migration `018` is applied there is no
+Asset Manager role to give.
 ### New users and temporary passwords
 
 The **New user** page has no password box. Creating a user generates a random temporary password (14 characters, no
