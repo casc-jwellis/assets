@@ -17,7 +17,6 @@ final class UsersModule extends Module
 {
     private const PER_PAGE = 25;
     private const ID = '\d+';
-    private const MIN_PASSWORD = 10;
 
     /** Adds users.must_change_password. From then on a new user gets a generated, emailed temporary password. */
     private const TEMP_MIGRATION = '017_users_must_change_password.sql';
@@ -486,8 +485,10 @@ final class UsersModule extends Module
             $f['admin'] = true;
             $f['manager'] = false;
         }
-        $password = (string) $req->post('password');
-        $confirm = (string) $req->post('password2');
+        // A password is only ever typed for a brand new account (before migration 017). Afterwards people choose their own,
+        // or use "Forgot password" on the sign-in page: an administrator can no longer set one here.
+        $password = $isNew ? (string) $req->post('password') : '';
+        $confirm = $isNew ? (string) $req->post('password2') : '';
         // A new user's password is generated and emailed (once migration 017 exists), so none is typed in.
         $temp = $isNew && $this->tempPasswords();
         $mail = $temp ? $this->notifier() : null;
@@ -539,8 +540,8 @@ final class UsersModule extends Module
             $errors[] = 'Choose a valid time zone.';
         }
         if (!$temp && ($isNew || $password !== '')) {
-            if (strlen($password) < self::MIN_PASSWORD) {
-                $errors[] = 'The password must be at least ' . self::MIN_PASSWORD . ' characters.';
+            if (strlen($password) < Auth::MIN_PASSWORD) {
+                $errors[] = 'The password must be at least ' . Auth::MIN_PASSWORD . ' characters.';
             } elseif (strlen($password) > Auth::MAX_PASSWORD) {
                 $errors[] = 'The password can be at most ' . Auth::MAX_PASSWORD . ' characters (letters outside A to Z count as more than one).';
             } elseif ($password !== $confirm) {
@@ -755,7 +756,7 @@ final class UsersModule extends Module
             'departments' => $this->departments(),
             'timezones'   => \DateTimeZone::listIdentifiers(),
             'canDisable'  => $this->app->auth->supportsDisabling(),
-            'minPassword' => self::MIN_PASSWORD,
+            'minPassword' => Auth::MIN_PASSWORD,
             'maxPassword' => Auth::MAX_PASSWORD,
             'actorAdmin'  => $this->app->auth->isAdmin(),
             'managerReady' => $this->managerReady(),

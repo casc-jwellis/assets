@@ -11,6 +11,8 @@ final class Auth
 
     /** Longest password that can be set. Counted in bytes, like the minimum: the password hash only looks at the first 72, so this stays safely inside it. */
     public const MAX_PASSWORD = 64;
+    /** Shortest password that can be set (counted in bytes, like the maximum). */
+    public const MIN_PASSWORD = 10;
 
     private ?array $user = null;
     private bool $loaded = false;

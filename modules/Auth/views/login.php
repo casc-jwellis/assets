@@ -1,4 +1,4 @@
-<?php /** Expects $username (string), $error (string|null). */ ?>
+<?php /** Expects $username (string), $error (string|null), $canReset (bool: show "Forgot password?"). */ ?>
 <div class="card auth-card">
     <div class="auth-brand">
         <span class="brand-mark"><?= icon('box', 22) ?></span>
@@ -24,4 +24,7 @@
         </div>
         <button type="submit" class="btn btn-primary btn-block">Sign in</button>
     </form>
+    <?php if (!empty($canReset)): ?>
+        <p class="auth-alt"><a href="<?= e(url('/forgot')) ?>">Forgot password?</a></p>
+    <?php endif; ?>
 </div>

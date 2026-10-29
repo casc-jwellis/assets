@@ -230,6 +230,29 @@ final class Notifier
     }
 
     /**
+     * The "forgot password" email: a one-time link, never logged. $path is the page on this site that finishes the reset.
+     *
+     * @param array{username:string, firstname:string, lastname:string, email:string} $user
+     * @return array{0:bool, 1:string} whether the mail server took it, and why not when it did not
+     */
+    public function sendPasswordReset(array $user, string $path, int $minutes): array
+    {
+        $c = $this->config();
+        $name = trim($user['firstname'] . ' ' . $user['lastname']);
+        $subject = '[' . app_name() . '] Reset your password';
+        $body = 'Hello' . ($name !== '' ? ' ' . $this->oneLine($name) : '') . ",\n\n"
+            . 'Someone asked to reset the password for the account "' . $this->oneLine($user['username']) . '" on ' . app_name() . ".\n\n"
+            . "To choose a new password, open this link:\n\n  " . $this->link($path) . "\n\n"
+            . 'It works once and expires in ' . $minutes . " minutes.\n\n"
+            . "If you did not ask for this, ignore this message: your password has not changed and nobody can use the link without this email.\n"
+            . "\n--\nSent by " . app_name() . ".\n";
+        [$ok, $detail, $unknown] = $this->deliver($c, [$user['email']], $subject, $body);
+        // The log keeps who and when, not what: the link stays out of it.
+        $this->log('reset', $subject, [$user['email']], $ok ? 'sent' : ($unknown ? 'unknown' : 'failed'), $detail);
+        return [$ok && $detail === '', $detail !== '' ? $detail : ($ok ? '' : 'The mail server did not accept it.')];
+    }
+
+    /**
      * @param list<string> $recipients
      * @return array{0:bool, 1:string, 2:bool} sent to at least one recipient, what went wrong (or ''), delivery uncertain
      */

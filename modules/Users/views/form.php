@@ -81,6 +81,8 @@ $never = $user === null || $user['lastlogin'] === null || str_starts_with((strin
             <input type="email" id="email" name="email" value="<?= e($f['email']) ?>" maxlength="128"<?= $mailReady ? ' required' : '' ?>>
             <?php if ($mailReady): ?>
                 <small class="muted">The temporary password is emailed here.</small>
+            <?php elseif (!$isNew): ?>
+                <small class="muted">If they forget their password, they can ask for a reset link on the sign-in page; it is sent to this address.</small>
             <?php endif; ?>
         </div>
         <div class="field-row even">
@@ -130,24 +132,19 @@ $never = $user === null || $user['lastlogin'] === null || str_starts_with((strin
             <p class="muted small">A temporary password is generated when you create the user and <?= $mailReady ? 'emailed to them' : 'shown to you once (email is not set up, so it cannot be sent; an administrator can set it up on the Email page)' ?>.
                 The first time they sign in they must choose their own.</p>
         </div>
-    <?php else: ?>
+    <?php elseif ($isNew): ?>
     <div class="card form-card wide section">
-        <h2><?= $isNew ? 'Password' : 'Reset password' ?></h2>
-        <?php if ($isNew): ?>
-            <p class="muted small">Apply the latest migrations (Migrations page) and new users will instead get a generated password by email.</p>
-        <?php endif; ?>
-        <?php if (!$isNew): ?>
-            <p class="muted small">Leave blank to keep the current password. Tell the person their new password in person; they can change it from the Account page.</p>
-        <?php endif; ?>
+        <h2>Password</h2>
+        <p class="muted small">Apply the latest migrations (Migrations page) and new users will instead get a generated password by email.</p>
         <div class="field-row even">
             <div class="field">
-                <label for="password"><?= $isNew ? 'Password' : 'New password' ?></label>
-                <input type="password" id="password" name="password" autocomplete="new-password" minlength="<?= e($minPassword) ?>" maxlength="<?= e($maxPassword) ?>"<?= $isNew ? ' required' : '' ?>>
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" autocomplete="new-password" minlength="<?= e($minPassword) ?>" maxlength="<?= e($maxPassword) ?>" required>
                 <small class="muted">Between <?= e($minPassword) ?> and <?= e($maxPassword) ?> characters.</small>
             </div>
             <div class="field">
                 <label for="password2">Confirm password</label>
-                <input type="password" id="password2" name="password2" autocomplete="new-password" minlength="<?= e($minPassword) ?>" maxlength="<?= e($maxPassword) ?>"<?= $isNew ? ' required' : '' ?>>
+                <input type="password" id="password2" name="password2" autocomplete="new-password" minlength="<?= e($minPassword) ?>" maxlength="<?= e($maxPassword) ?>" required>
             </div>
         </div>
     </div>

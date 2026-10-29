@@ -575,3 +575,5 @@ code { font-size: .88em; background: var(--surface-2); padding: 1px 5px; border-
 @keyframes toast-out { to   { opacity: 0; transform: translateY(-12px); } }
 @keyframes toast-bar { to   { transform: scaleX(0); } }
 @media (prefers-reduced-motion: reduce) { .toast, .toast.is-leaving { animation-duration: 1ms; } .toast-bar { display: none; } }
+
+.auth-alt { text-align: center; margin: 14px 0 0; font-size: .9rem; }

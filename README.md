@@ -124,6 +124,22 @@ one by address. Where an administrator gave a user Read & write on a department,
 they cannot remove it or add another. They cannot change roles, make anyone an administrator or manager, or merge
 accounts, whatever they send. An account marked as both is an administrator. Until migration `018` is applied there is no
 Asset Manager role to give.
+### Forgot password
+
+When email is set up (the Email page) and migration `019` is applied, the sign-in page shows **Forgot password?**. The person
+types their username or email address and is emailed a link to choose a new password.
+
+- The link works **once** and expires after **60 minutes**; asking again replaces the earlier link. Only a hash of the link's
+  secret is stored (table `password_resets`), so a copy of the database cannot be used to reset a password, and the link is
+  never written to the email log.
+- **Nobody can find out whether an account exists.** Every request, for a real account or not, gets the same message and the
+  same speed (the email is sent after the answer has gone). Nothing is sent for an unknown name, a disabled account, an
+  account without an email address, or an address shared by two accounts.
+- A new link for the same account is refused for a minute, and one address can ask for at most 10 links an hour.
+- Finishing a reset does not sign the person in, ends a temporary-password requirement, and uses up every link for the
+  account. People already signed in on other devices stay signed in until their session ends.
+- Without email set up the link is not shown at all; an administrator then has no way to set a password for someone, so
+  set up the Email page first.
 ### New users and temporary passwords
 
 The **New user** page has no password box. Creating a user generates a random temporary password (14 characters, no
@@ -132,8 +148,7 @@ required while mail is set up). The mail only needs the server and from address 
 the notifications switch. The first time the new user signs in, every page except **Change password** (and sign out)
 sends them to choosing their own; the temporary password cannot be reused. If the email cannot be sent (mail not set up,
 or the server refuses), the user is still created and the temporary password is shown to you **once**, on that page, so you
-can pass it on. It is never stored in readable form, never put in the email log, and not shown again. You can still set
-a password by hand when editing a user; that does not force a change. The Department access table has an **All departments** row to set None, Read or Read & write for every department at once. Needs migration `017` (until it is applied the
+can pass it on. It is never stored in readable form, never put in the email log, and not shown again. An administrator or Asset Manager cannot set someone's password: people choose their own, or use **Forgot password?** on the sign-in page (below). The Department access table has an **All departments** row to set None, Read or Read & write for every department at once. Needs migration `017` (until it is applied the
 page keeps its old password boxes). Passwords are 10 to 64 characters wherever one is set (your own account, editing a user, the setup wizard); the limit is counted in bytes, so letters outside A to Z count as more than one. Signing in is not limited, so an older, longer password still works.
 ### Migrations
 
