@@ -39,6 +39,7 @@ final class AssetsModule extends Module
     {
         $router->get('/assets', [$this, 'index']);
         // Fixed paths before the {id} ones.
+        $router->get('/assets/export', [$this, 'export']);
         $router->get('/assets/new', [$this, 'showNew']);
         $router->post('/assets/new', [$this, 'create']);
         $router->post('/assets/bulk', [$this, 'bulkReview']);
@@ -87,7 +88,13 @@ final class AssetsModule extends Module
         return ['sort' => $key === self::DEFAULT_SORT ? null : $key, 'dir' => $dir === 'desc' ? 'desc' : null];
     }
 
-    /** The list view to return to: search text, page, status filter and sort (see Module::listState). */
+    /** The advanced filters in the address (?f[...]), validated; filters whose columns are not in the database yet are left out. */
+    private function filters(Request $req): AssetFilter
+    {
+        return AssetFilter::fromQuery($req->queryArray('f'), $this->editingReady(), $this->retirementReady());
+    }
+
+    /** The list view to return to: search text, page, status filter, advanced filters and sort (see Module::listState). */
     protected function rememberList(Request $req): void
     {
         $status = $this->statusFilter($req);
@@ -95,7 +102,7 @@ final class AssetsModule extends Module
         $this->listQs = $this->listState(
             mb_substr(trim((string) $req->query('q')), 0, 64),
             max(1, (int) $req->query('page', '1')),
-            ['status' => $status === 'active' ? null : $status] + $this->sortParams($sort, $dir)
+            ['status' => $status === 'active' ? null : $status] + $this->sortParams($sort, $dir) + $this->filters($req)->query()
         );
     }
 
@@ -110,11 +117,11 @@ final class AssetsModule extends Module
     }
 
     /**
-     * WHERE clause for the list: department read scope + search text + status filter.
+     * WHERE clause for the list: department read scope + search text + status filter + advanced filters.
      *
      * @return array{0:string, 1:list<mixed>}
      */
-    private function listWhere(string $search, string $status): array
+    private function listWhere(string $search, string $status, AssetFilter $filters): array
     {
         [$where, $params] = $this->app->auth->departmentScope('a.department_id');
         if ($search !== '' && has_wide_chars($search)) {
@@ -134,7 +141,8 @@ final class AssetsModule extends Module
         } elseif ($status === 'retired') {
             $where .= ' AND a.retired = 1';
         }
-        return [$where, $params];
+        [$filterSql, $filterParams] = $filters->where();
+        return [$where . $filterSql, [...$params, ...$filterParams]];
     }
 
     /** Read-only detail page: every column, plus the asset's transfer history. */
@@ -222,27 +230,23 @@ final class AssetsModule extends Module
         $statusParam = $status === 'active' ? null : $status;
         [$sort, $dir] = $this->sortState($req);
         $sortParams = $this->sortParams($sort, $dir);
+        $filters = $this->filters($req);
+        $filterQuery = $filters->query();
 
         // An empty search is just the plain list: keep the address bar tidy ("/assets", not "/assets?q=").
         if ($req->query('q') !== null && $search === '') {
-            $this->redirect('/assets' . $this->listState('', $page, ['status' => $statusParam] + $sortParams));
+            $this->redirect('/assets' . $this->listState('', $page, ['status' => $statusParam] + $sortParams + $filterQuery));
         }
 
-        [$where, $params] = $this->listWhere($search, $status);
+        [$where, $params] = $this->listWhere($search, $status, $filters);
 
         $total = (int) $db->value("SELECT COUNT(*) FROM assets a WHERE {$where}", $params);
         $pages = max(1, (int) ceil($total / self::PER_PAGE));
         $page = min($page, $pages);
         $offset = ($page - 1) * self::PER_PAGE; // ints only: safe to inline
-        $this->listQs = $this->listState($search, $page, ['status' => $statusParam] + $sortParams);
+        $this->listQs = $this->listState($search, $page, ['status' => $statusParam] + $sortParams + $filterQuery);
 
-        // The chosen column in the chosen direction, then asset number so rows with equal values keep a stable
-        // order (and do not shuffle between pages).
-        $direction = strtoupper($dir);
-        $order = implode(', ', [
-            ...array_map(static fn(string $c): string => "{$c} {$direction}", self::SORTS[$sort]),
-            'a.asset_number ASC', 'a.asset_id ASC',
-        ]);
+        $order = $this->orderBy($sort, $dir);
 
         $retirement = $this->retirementReady();
         // A paperclip with a count beside assets that have attachments (only once that table exists).
@@ -262,20 +266,179 @@ final class AssetsModule extends Module
         );
 
         $canWriteAny = $this->editingReady() && $this->app->auth->canWriteAny();
+        [$options, $names] = $this->filterLookups();
         return $this->render('index', [
-            'title'      => 'Assets',
-            'rows'       => $rows,
-            'search'     => $search,
-            'page'       => $page,
-            'pages'      => $pages,
-            'total'      => $total,
-            'status'     => $status,
-            'sort'       => $sort,
-            'dir'        => $dir,
-            'showStatus' => $retirement,
-            'canAdd'     => $canWriteAny,
-            'canBulk'    => $canWriteAny && $retirement,
+            'title'       => 'Assets',
+            'rows'        => $rows,
+            'search'      => $search,
+            'page'        => $page,
+            'pages'       => $pages,
+            'total'       => $total,
+            'status'      => $status,
+            'sort'        => $sort,
+            'dir'         => $dir,
+            'showStatus'  => $retirement,
+            'canAdd'      => $canWriteAny,
+            'canBulk'     => $canWriteAny && $retirement,
+            'filters'     => $filters,
+            'filterQuery' => $filterQuery,
+            'chips'       => $filters->chips($names),
+            'options'     => $options,
         ]);
+    }
+
+    /**
+     * Download the list as a CSV: every asset the current search, status, filters and department access allow (not just
+     * the page on screen), in the order shown. The address carries the same ?q=, ?status=, ?f[...] and ?sort= as the list.
+     */
+    public function export(Request $req): never
+    {
+        $db = $this->app->db;
+        $search = trim((string) $req->query('q'));
+        $status = $this->statusFilter($req);
+        [$sort, $dir] = $this->sortState($req);
+        [$where, $params] = $this->listWhere($search, $status, $this->filters($req));
+        $order = $this->orderBy($sort, $dir);
+        $retirement = $this->retirementReady();
+        $editing = $this->editingReady();
+
+        // Header => how to read it from a row. Columns that need a later migration appear once it is applied.
+        $columns = [
+            'Asset #' => ['asset_number', 'text'], 'Serial' => ['serial_number', 'text'], 'Description' => ['description', 'text'],
+            'Type' => ['type_name', 'text'], 'Department' => ['dept', 'text'], 'Building' => ['building', 'text'], 'Room' => ['room', 'text'],
+            'Purchasing dept' => ['purchaser', 'text'], 'Cost' => ['cost', 'plain'], 'PO number' => ['po_number', 'text'],
+            'Purchased' => ['purchase_date', 'date'], 'Last verified' => ['verified_date', 'date'],
+        ];
+        $select = 'a.asset_number, a.serial_number, a.description, a.room, a.cost, a.po_number, a.purchase_date, a.verified_date, a.notes,
+                   a.created_date, t.name AS type_name, d.abbr AS dept, b.abbr AS building, p.abbr AS purchaser,
+                   u.firstname AS add_first, u.lastname AS add_last, u.username AS add_user';
+        $joins = 'LEFT JOIN asset_types t ON t.type_id = a.type_id
+                  LEFT JOIN departments d ON d.department_id = a.department_id
+                  LEFT JOIN buildings b ON b.building_id = a.building_id
+                  LEFT JOIN departments p ON p.department_id = a.purchaser_id
+                  LEFT JOIN users u ON u.user_id = a.user_id';
+        if ($retirement) {
+            $columns += ['Status' => ['status', 'plain'], 'Retired' => ['retired_date', 'date'], 'Disposal method' => ['disposal_method', 'text'], 'Retirement notes' => ['retired_notes', 'text']];
+            $select .= ', a.retired, a.retired_date, a.disposal_method, a.retired_notes';
+        }
+        $columns += ['Notes' => ['notes', 'text'], 'Added' => ['created_date', 'plain'], 'Added by' => ['added_by', 'text']];
+        if ($editing) {
+            $columns += ['Last changed' => ['updated_date', 'plain'], 'Last changed by' => ['changed_by', 'text']];
+            $select .= ', a.updated_date, c.firstname AS chg_first, c.lastname AS chg_last, c.username AS chg_user';
+            $joins .= ' LEFT JOIN users c ON c.user_id = a.updated_by';
+        }
+
+        // Out of the session lock first, so the rest of the site stays usable while a long file is built.
+        session_write_close();
+        ignore_user_abort(false);
+        @set_time_limit(300);
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="assets-' . date('Y-m-d') . '.csv"');
+        header('Cache-Control: no-store');
+        header('X-Content-Type-Options: nosniff');
+
+        $out = fopen('php://output', 'w');
+        fwrite($out, "\xEF\xBB\xBF"); // a byte-order mark so Excel reads accented letters correctly
+        $put = static fn(array $fields) => fputcsv($out, $fields, ',', '"', '', "\r\n");
+        $put(array_keys($columns));
+
+        $name = static fn(?string $first, ?string $last, ?string $user): string => trim((string) $first . ' ' . (string) $last) ?: (string) $user;
+        // A cell that starts with = + - @ is run as a formula by spreadsheet programs: a leading ' keeps it as text.
+        $safe = static fn(string $s): string => $s !== '' && strpbrk($s[0], "=+-@\t\r") !== false ? "'" . $s : $s;
+        $day = static fn(mixed $v): string => $v === null || str_starts_with((string) $v, '0000') ? '' : substr((string) $v, 0, 10);
+        $stamp = static fn(mixed $v): string => $v === null || str_starts_with((string) $v, '0000') ? '' : (string) $v;
+
+        $chunk = 1000;
+        for ($offset = 0;; $offset += $chunk) {
+            $rows = $db->all("SELECT {$select} FROM assets a {$joins} WHERE {$where} ORDER BY {$order} LIMIT {$chunk} OFFSET {$offset}", $params);
+            foreach ($rows as $r) {
+                $r['status'] = !empty($r['retired']) ? 'Retired' : 'Active';
+                $r['added_by'] = $name($r['add_first'], $r['add_last'], $r['add_user']);
+                $r['changed_by'] = $name($r['chg_first'] ?? null, $r['chg_last'] ?? null, $r['chg_user'] ?? null);
+                $line = [];
+                foreach ($columns as [$field, $kind]) {
+                    $v = $r[$field] ?? null;
+                    $line[] = match ($kind) {
+                        'text'  => $safe((string) $v),
+                        'date'  => $day($v),
+                        default => in_array($field, ['created_date', 'updated_date'], true) ? $stamp($v) : (string) $v,
+                    };
+                }
+                $put($line);
+            }
+            if (count($rows) < $chunk) {
+                break;
+            }
+            flush();
+        }
+        fclose($out);
+        exit;
+    }
+
+    /**
+     * ORDER BY for the list and the export: the chosen column in the chosen direction, then asset number so rows with
+     * equal values keep a stable order (and do not shuffle between pages).
+     */
+    private function orderBy(string $sort, string $dir): string
+    {
+        $direction = strtoupper($dir);
+        return implode(', ', [
+            ...array_map(static fn(string $c): string => "{$c} {$direction}", self::SORTS[$sort]),
+            'a.asset_number ASC', 'a.asset_id ASC',
+        ]);
+    }
+
+    /**
+     * What the filter panel offers and what its chips call things.
+     *
+     * @return array{0:array<string, array<int|string, string>>, 1:array<string, array<int|string, string>>}
+     *         [the choices for each pick field (value => full label), short labels (value => abbreviation or name)]
+     */
+    private function filterLookups(): array
+    {
+        $db = $this->app->db;
+        $types = array_column($db->all('SELECT type_id, name FROM asset_types ORDER BY name'), 'name', 'type_id');
+        $depts = $db->all('SELECT department_id, abbr, name FROM departments ORDER BY abbr');
+        $buildings = $db->all('SELECT building_id, abbr, name FROM buildings ORDER BY abbr');
+        // Administrators and Asset Managers can pick anyone; everyone else only the people behind assets they can see.
+        $people = [];
+        if ($this->app->auth->isAdminOrManager()) {
+            $users = $db->all('SELECT user_id, firstname, lastname, username FROM users ORDER BY lastname, firstname, username');
+        } else {
+            [$scope, $scopeParams] = $this->app->auth->departmentScope('a.department_id');
+            $by = "u.user_id IN (SELECT a.user_id FROM assets a WHERE {$scope})";
+            $users = $db->all(
+                'SELECT u.user_id, u.firstname, u.lastname, u.username FROM users u WHERE ' . $by
+                . ($this->editingReady() ? " OR u.user_id IN (SELECT a.updated_by FROM assets a WHERE {$scope})" : '')
+                . ' ORDER BY u.lastname, u.firstname, u.username',
+                $this->editingReady() ? [...$scopeParams, ...$scopeParams] : $scopeParams
+            );
+        }
+        foreach ($users as $u) {
+            $people[(int) $u['user_id']] = trim($u['firstname'] . ' ' . $u['lastname']) ?: (string) $u['username'];
+        }
+        $label = static fn(array $r): string => $r['name'] !== '' && $r['name'] !== $r['abbr'] ? "{$r['abbr']} · {$r['name']}" : (string) $r['abbr'];
+        $deptLabels = [];
+        foreach ($depts as $d) {
+            $deptLabels[(int) $d['department_id']] = $label($d);
+        }
+        $buildingLabels = [];
+        foreach ($buildings as $b) {
+            $buildingLabels[(int) $b['building_id']] = $label($b);
+        }
+        $deptAbbr = array_column($depts, 'abbr', 'department_id');
+
+        return [
+            [
+                'type' => $types, 'dept' => $deptLabels, 'purchaser' => $deptLabels, 'bldg' => $buildingLabels,
+                'disp' => array_combine(self::DISPOSAL_METHODS, self::DISPOSAL_METHODS),
+                'by' => $people, 'chg' => $people,
+            ],
+            [
+                'type' => $types, 'dept' => $deptAbbr, 'purchaser' => $deptAbbr, 'bldg' => array_column($buildings, 'abbr', 'building_id'),
+                'by' => $people, 'chg' => $people,
+            ],
+        ];
     }
 
     // ----------------------------------------------------------------- write
@@ -918,7 +1081,7 @@ final class AssetsModule extends Module
         $truncated = false;
 
         if ($allowSelectAll && $req->post('select_all') === '1') {
-            [$where, $params] = $this->listWhere(trim((string) $req->query('q')), $this->statusFilter($req));
+            [$where, $params] = $this->listWhere(trim((string) $req->query('q')), $this->statusFilter($req), $this->filters($req));
             $ids = array_map('intval', array_column(
                 $db->all("SELECT a.asset_id FROM assets a WHERE {$where} ORDER BY a.asset_number LIMIT " . (self::BULK_LIMIT + 1), $params),
                 'asset_id'

@@ -38,6 +38,23 @@ On the **New asset** page, tick **Keep data for batch input** before creating an
 returns with the form filled in from it (every field, including the asset and serial numbers), so twenty laptops only need
 those two changed each time. The checkbox is at the top of the form. Untick it on the last one. Nothing is stored for this: the form is filled from the asset just created, and only if you can add to its department.
 
+### Searching, filtering and exporting assets
+
+The search box on the **Assets** list searches as you type (asset number, serial, description and location; location is the
+building and room, written `SCI204` or `SCI 204`). The **Filter** button opens a panel that narrows the list by any field:
+pick one or more types, departments, purchasing departments, buildings and disposal methods; "contains" text on asset number,
+serial, description, PO number, room, notes and retirement notes; a cost range; from/to dates for purchased, verified, added, last
+changed and retired; verification (never verified, has been verified, not verified since a date); and who added or last changed
+an asset. Filters combine with each other, with the search box and with the **Show** menu (retired assets stay hidden until it is
+set to Retired or All). Each filter in use appears as a chip you can click to remove. The filters live in the address
+(`?f[...]`), so a filtered list can be bookmarked or shared, and the bulk Transfer / Retire buttons and "Select all N matching"
+act on the filtered list. Department access limits still apply on top of everything.
+
+The download icon next to **Filter** exports the whole list as it is shown (every page, same search, filters and sort) to a CSV
+file with every field, including notes. It opens in Excel (UTF-8 with a byte-order mark), and text that starts with `=`, `+`, `-` or
+`@` is saved with a leading `'` so a spreadsheet cannot run it as a formula. The filter code is `modules/Assets/AssetFilter.php`;
+filters whose columns need migration 005 (last changed) or 006 (retirement) appear once that migration is applied.
+
 ### Attachments
 
 Each asset page has an **Attachments** card for photos and documents: JPG, PNG, WebP, PDF, TXT and CSV (what a file

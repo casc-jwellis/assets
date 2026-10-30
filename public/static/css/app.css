@@ -382,8 +382,34 @@ input:disabled { opacity: .6; cursor: not-allowed; }
     .page-actions { width: 100%; }
     .search-form { display: contents; }
     .search-form .search, .page-actions > .search { width: 100%; flex: 1 1 100%; }
-    .search-form select, .page-actions > .btn { flex: 1 1 0; }
+    .search-form select, .search-form .btn, .page-actions > .btn { flex: 1 1 0; }
+    .search-form .btn-icon { flex: none; }
 }
+
+/* Asset filters: the Filter button, its panel, and the chips for what is applied */
+.btn-icon { padding: 8px 10px; flex: none; }
+.filter-count:empty { display: none; }
+.filter-panel { padding: 16px 18px 12px; margin-bottom: 16px; }
+.filter-group { border: 0; margin: 0 0 6px; padding: 0; min-width: 0; }
+.filter-group legend { padding: 0; margin-bottom: 8px; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+.filter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 0 14px; }
+.filter-grid.wide { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.filter-grid .field { margin-bottom: 12px; min-width: 0; }
+.field .field-label { display: block; margin-bottom: 6px; font-weight: 550; font-size: .9rem; }
+.range { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.pick summary { padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+.pick summary::-webkit-details-marker { display: none; }
+.pick summary::after { content: "▾"; color: var(--muted); }
+.pick[open] summary { border-color: var(--accent); }
+.pick-list { margin-top: 6px; max-height: 200px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 6px 10px; }
+.pick-list label { display: flex; gap: 8px; align-items: center; margin: 0; padding: 3px 0; font-size: .9rem; font-weight: 400; cursor: pointer; }
+.pick-list input { accent-color: var(--accent); }
+.filter-group > p { margin: 0 0 12px; }
+.filter-foot { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; padding-top: 4px; }
+.filter-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px; }
+.chip { display: inline-flex; gap: 6px; align-items: center; padding: 3px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: .85rem; font-weight: 600; text-decoration: none; }
+.chip:hover { text-decoration: none; filter: brightness(.95); }
+.chip-clear { font-size: .85rem; }
 .check-col { width: 36px; padding-right: 0 !important; }
 .check-col input { accent-color: var(--accent); width: 16px; height: 16px; vertical-align: middle; }
 .is-retired td { color: var(--muted); }

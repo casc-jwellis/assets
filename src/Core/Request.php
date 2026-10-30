@@ -37,6 +37,13 @@ final class Request
         return is_string($v) ? $v : $default;
     }
 
+    /** @return array<mixed> an array-valued query field such as f[type][]=1, as received: the caller validates every entry */
+    public function queryArray(string $key): array
+    {
+        $v = $_GET[$key] ?? null;
+        return is_array($v) ? $v : [];
+    }
+
     public function post(string $key, ?string $default = null): ?string
     {
         $v = $_POST[$key] ?? null;

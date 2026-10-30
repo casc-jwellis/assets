@@ -32,26 +32,33 @@
         });
     });
 
-    // ----- Live search: <input type="search" data-live-search> inside a GET form -----
+    // ----- Live search and filters: <input type="search" data-live-search> inside a GET form -----
     // Fetches the results a moment after typing stops and swaps in the [data-live-region] elements of the new page,
-    // so the box keeps focus. Anything unexpected falls back to an ordinary form submit.
+    // so the box keeps focus. Controls with data-live-filter (they may sit outside the form and name it with form="...")
+    // refresh the list the same way when they change. Anything unexpected falls back to an ordinary form submit.
     document.querySelectorAll('input[data-live-search]').forEach(function (input) {
         var form = input.form;
         if (!form || !window.fetch || !window.DOMParser) { return; }
         var timer = null;
         var controller = null;
-        var last = input.value.trim();
+
+        // What the form would send, without the empty boxes, so the address stays short.
+        function serialize() {
+            var params = new URLSearchParams(new FormData(form));
+            params.set('q', input.value.trim());
+            Array.from(params.keys()).forEach(function (key) {
+                if (params.get(key) === '') { params.delete(key); }
+            });
+            return params.toString();
+        }
+        var last = serialize();
 
         function fallback() { form.requestSubmit(); }
 
         function run() {
-            var term = input.value.trim();
-            if (term === last) { return; }
-            last = term;
-            var params = new URLSearchParams(new FormData(form));
-            params.set('q', term);
-            if (term === '') { params.delete('q'); }
-            var query = params.toString();
+            var query = serialize();
+            if (query === last) { return; }
+            last = query;
             var url = form.getAttribute('action') + (query ? '?' + query : '');
             if (controller) { controller.abort(); }
             controller = new AbortController();
@@ -76,12 +83,59 @@
                 });
         }
 
-        input.addEventListener('input', function () {
+        function schedule() {
             clearTimeout(timer);
             timer = setTimeout(run, 250);
-        });
-        // Enter still works: it just does the same thing straight away.
+        }
+
+        function isMine(el) {
+            return el === input || (el.form === form && el.hasAttribute && el.hasAttribute('data-live-filter'));
+        }
+        document.addEventListener('input', function (ev) { if (isMine(ev.target)) { schedule(); } });
+        document.addEventListener('change', function (ev) { if (isMine(ev.target)) { schedule(); } });
+        form.addEventListener('live-refresh', schedule);
+        // A normal submit (Enter, or the Show menu) does the same thing straight away, minus the empty boxes.
         form.addEventListener('submit', function () { clearTimeout(timer); if (controller) { controller.abort(); } });
+        form.addEventListener('formdata', function (ev) {
+            Array.from(ev.formData.keys()).forEach(function (key) {
+                if (ev.formData.get(key) === '') { ev.formData.delete(key); }
+            });
+        });
+    });
+
+    // ----- Show or hide a panel: <button data-toggle="panel-id"> -----
+    document.querySelectorAll('[data-toggle]').forEach(function (btn) {
+        var panel = document.getElementById(btn.getAttribute('data-toggle'));
+        if (!panel) { return; }
+        btn.addEventListener('click', function () {
+            panel.hidden = !panel.hidden;
+            btn.setAttribute('aria-expanded', panel.hidden ? 'false' : 'true');
+        });
+    });
+
+    // ----- Pick-from-a-list filters: <details class="pick"> with checkboxes; the summary says how many are ticked -----
+    function pickText(details) {
+        var n = details.querySelectorAll('input:checked').length;
+        var text = details.querySelector('[data-pick-text]');
+        if (text) { text.textContent = n === 0 ? 'Any' : n + ' selected'; }
+    }
+    document.querySelectorAll('details.pick').forEach(function (details) {
+        details.addEventListener('change', function () { pickText(details); });
+    });
+
+    // ----- "Clear filters": empties every [data-live-filter] control in the panel, then refreshes the list -----
+    document.querySelectorAll('[data-filter-clear]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var panel = btn.closest('section');
+            if (!panel) { return; }
+            var form = null;
+            panel.querySelectorAll('[data-live-filter]').forEach(function (el) {
+                form = el.form || form;
+                if (el.type === 'checkbox') { el.checked = false; } else if (el.tagName === 'SELECT') { el.selectedIndex = 0; } else { el.value = ''; }
+            });
+            panel.querySelectorAll('details.pick').forEach(pickText);
+            if (form) { form.dispatchEvent(new Event('live-refresh')); }
+        });
     });
 
     // ----- Selects that reload their GET form when changed: <select data-autosubmit> -----
