@@ -114,7 +114,7 @@ $backLabel = $fromAsset > 0 ? 'Back to ' . $targets[0]['asset_number'] : ($listQ
                         <td class="nowrap"><?= e($t['asset_number']) ?></td>
                         <td><?= e($t['description']) ?></td>
                         <td><span class="badge"><?= e($t['dept']) ?></span></td>
-                        <td class="nowrap"><?= e(trim(($t['building'] ?? '') . ' ' . $t['room'])) ?></td>
+                        <td class="nowrap"><?= e(($t['building'] ?? '') . $t['room']) ?></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>

@@ -42,7 +42,7 @@ $sortLink = static function (string $key, string $label, string $first) use ($so
         <form method="get" action="<?= e(url('/assets')) ?>" class="search-form" role="search">
             <div class="search">
                 <?= icon('search', 16) ?>
-                <input type="search" name="q" value="<?= e($search) ?>" placeholder="Asset #, serial or description" aria-label="Search assets" maxlength="64" data-live-search>
+                <input type="search" name="q" value="<?= e($search) ?>" placeholder="Asset #, serial, description or location" aria-label="Search assets" maxlength="64" data-live-search>
             </div>
             <?php if ($showStatus): ?>
                 <select name="status" aria-label="Show" data-autosubmit>
@@ -103,7 +103,7 @@ $sortLink = static function (string $key, string $label, string $first) use ($so
                             <td><?= e($r['type_name']) ?></td>
                             <td class="nowrap"><?= e($r['serial_number']) ?></td>
                             <td><span class="badge"><?= e($r['dept']) ?></span></td>
-                            <td class="nowrap"><?= e(trim($r['building'] . ' ' . $r['room'])) ?></td>
+                            <td class="nowrap"><?= e($r['building'] . $r['room']) ?></td>
                             <td class="num"><?= e(fmt_money($r['cost'])) ?></td>
                             <td class="nowrap">
                                 <?php if ($isRetired): ?>

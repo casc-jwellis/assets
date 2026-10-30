@@ -122,8 +122,12 @@ final class AssetsModule extends Module
         } elseif ($search !== '') {
             // '!' is the LIKE escape character so user-typed % and _ are matched literally.
             $like = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $search) . '%';
-            $where .= " AND (a.asset_number LIKE ? ESCAPE '!' OR a.serial_number LIKE ? ESCAPE '!' OR a.description LIKE ? ESCAPE '!')";
-            array_push($params, $like, $like, $like);
+            // The location column is building and room run together ("MAIN204"); a space between them ("MAIN 204") matches too.
+            $where .= " AND (a.asset_number LIKE ? ESCAPE '!' OR a.serial_number LIKE ? ESCAPE '!' OR a.description LIKE ? ESCAPE '!'"
+                . " OR a.room LIKE ? ESCAPE '!'"
+                . " OR EXISTS (SELECT 1 FROM buildings bs WHERE bs.building_id = a.building_id"
+                . " AND (CONCAT_WS(' ', bs.abbr, a.room) LIKE ? ESCAPE '!' OR CONCAT(bs.abbr, a.room) LIKE ? ESCAPE '!')))";
+            array_push($params, $like, $like, $like, $like, $like, $like);
         }
         if ($status === 'active') {
             $where .= ' AND a.retired = 0';
@@ -820,7 +824,7 @@ final class AssetsModule extends Module
                     'asset_number' => (string) $t['asset_number'],
                     'description'  => (string) $t['description'],
                     'dept'         => (string) ($t['dept'] ?? ''),
-                    'location'     => trim((string) ($t['building'] ?? '') . ' ' . $t['room']),
+                    'location'     => (string) ($t['building'] ?? '') . $t['room'],
                 ];
                 $changed++;
             }
