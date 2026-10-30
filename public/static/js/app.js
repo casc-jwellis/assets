@@ -32,6 +32,58 @@
         });
     });
 
+    // ----- Live search: <input type="search" data-live-search> inside a GET form -----
+    // Fetches the results a moment after typing stops and swaps in the [data-live-region] elements of the new page,
+    // so the box keeps focus. Anything unexpected falls back to an ordinary form submit.
+    document.querySelectorAll('input[data-live-search]').forEach(function (input) {
+        var form = input.form;
+        if (!form || !window.fetch || !window.DOMParser) { return; }
+        var timer = null;
+        var controller = null;
+        var last = input.value.trim();
+
+        function fallback() { form.requestSubmit(); }
+
+        function run() {
+            var term = input.value.trim();
+            if (term === last) { return; }
+            last = term;
+            var params = new URLSearchParams(new FormData(form));
+            params.set('q', term);
+            if (term === '') { params.delete('q'); }
+            var query = params.toString();
+            var url = form.getAttribute('action') + (query ? '?' + query : '');
+            if (controller) { controller.abort(); }
+            controller = new AbortController();
+            var mine = controller;
+            fetch(url, { credentials: 'same-origin', signal: mine.signal, headers: { 'X-Requested-With': 'fetch' } })
+                .then(function (res) {
+                    if (!res.ok || res.redirected) { throw new Error('unexpected response'); }
+                    return res.text();
+                })
+                .then(function (html) {
+                    var doc = new DOMParser().parseFromString(html, 'text/html');
+                    var fresh = doc.querySelectorAll('[data-live-region]');
+                    var stale = document.querySelectorAll('[data-live-region]');
+                    if (fresh.length === 0 || fresh.length !== stale.length) { throw new Error('no results area'); }
+                    stale.forEach(function (el, i) { el.replaceWith(document.importNode(fresh[i], true)); });
+                    initBulk(document);
+                    try { history.replaceState(null, '', url); } catch (e) { /* not essential */ }
+                })
+                .catch(function (err) {
+                    if (err && err.name === 'AbortError') { return; } // a newer search replaced this one
+                    fallback();
+                });
+        }
+
+        input.addEventListener('input', function () {
+            clearTimeout(timer);
+            timer = setTimeout(run, 250);
+        });
+        // Enter still works: it just does the same thing straight away.
+        form.addEventListener('submit', function () { clearTimeout(timer); if (controller) { controller.abort(); } });
+    });
+
     // ----- Selects that reload their GET form when changed: <select data-autosubmit> -----
     document.querySelectorAll('select[data-autosubmit]').forEach(function (select) {
         select.addEventListener('change', function () {
@@ -43,41 +95,45 @@
     // <form data-bulk-form data-total="N"> with row checkboxes name="ids[]", a header checkbox
     // [data-select-all], a hidden input name="select_all", and a bar [data-bulk-bar] holding
     // [data-bulk-count] and (optionally) a [data-bulk-all] "select everything matching" button.
-    document.querySelectorAll('form[data-bulk-form]').forEach(function (form) {
-        var boxes = Array.prototype.slice.call(form.querySelectorAll('input[name="ids[]"]'));
-        var master = form.querySelector('[data-select-all]');
-        var bar = form.querySelector('[data-bulk-bar]');
-        var count = form.querySelector('[data-bulk-count]');
-        var allBtn = form.querySelector('[data-bulk-all]');
-        var allField = form.querySelector('input[name="select_all"]');
-        var total = parseInt(form.getAttribute('data-total'), 10) || boxes.length;
-        if (!bar || !master) { return; }
+    // Run again on the new list after a live search swaps it in.
+    function initBulk(scope) {
+        scope.querySelectorAll('form[data-bulk-form]').forEach(function (form) {
+            var boxes = Array.prototype.slice.call(form.querySelectorAll('input[name="ids[]"]'));
+            var master = form.querySelector('[data-select-all]');
+            var bar = form.querySelector('[data-bulk-bar]');
+            var count = form.querySelector('[data-bulk-count]');
+            var allBtn = form.querySelector('[data-bulk-all]');
+            var allField = form.querySelector('input[name="select_all"]');
+            var total = parseInt(form.getAttribute('data-total'), 10) || boxes.length;
+            if (!bar || !master) { return; }
 
-        function plural(n) { return n.toLocaleString() + (n === 1 ? ' asset' : ' assets'); }
+            function plural(n) { return n.toLocaleString() + (n === 1 ? ' asset' : ' assets'); }
 
-        function update() {
-            var n = boxes.filter(function (b) { return b.checked; }).length;
-            var everything = allField.value === '1';
-            bar.hidden = n === 0;
-            master.checked = n > 0 && n === boxes.length;
-            master.indeterminate = n > 0 && n < boxes.length;
-            if (n === 0) { allField.value = ''; everything = false; }
-            count.textContent = everything ? 'All ' + plural(total) + ' selected' : plural(n) + ' selected';
-            // Offer "select all N matching" once the whole page is ticked and there are more pages.
-            allBtn.hidden = everything || !(master.checked && total > boxes.length);
-        }
+            function update() {
+                var n = boxes.filter(function (b) { return b.checked; }).length;
+                var everything = allField.value === '1';
+                bar.hidden = n === 0;
+                master.checked = n > 0 && n === boxes.length;
+                master.indeterminate = n > 0 && n < boxes.length;
+                if (n === 0) { allField.value = ''; everything = false; }
+                count.textContent = everything ? 'All ' + plural(total) + ' selected' : plural(n) + ' selected';
+                // Offer "select all N matching" once the whole page is ticked and there are more pages.
+                allBtn.hidden = everything || !(master.checked && total > boxes.length);
+            }
 
-        master.addEventListener('change', function () {
-            boxes.forEach(function (b) { b.checked = master.checked; });
-            allField.value = '';
+            master.addEventListener('change', function () {
+                boxes.forEach(function (b) { b.checked = master.checked; });
+                allField.value = '';
+                update();
+            });
+            boxes.forEach(function (b) {
+                b.addEventListener('change', function () { allField.value = ''; update(); });
+            });
+            allBtn.addEventListener('click', function () { allField.value = '1'; update(); });
             update();
         });
-        boxes.forEach(function (b) {
-            b.addEventListener('change', function () { allField.value = ''; update(); });
-        });
-        allBtn.addEventListener('click', function () { allField.value = '1'; update(); });
-        update();
-    });
+    }
+    initBulk(document);
 
     // ----- File inputs with a size limit: <input type="file" data-max-bytes="N"> in a form with [data-upload-warning] -----
     document.querySelectorAll('input[type="file"][data-max-bytes]').forEach(function (input) {

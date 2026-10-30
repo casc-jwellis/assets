@@ -34,7 +34,7 @@ $statusLabels = ['active' => 'Active', 'disabled' => 'Disabled', 'all' => 'All']
 $never = static fn($v): bool => $v === null || $v === '' || str_starts_with((string) $v, '0000') || str_starts_with((string) $v, '1970-01-01');
 ?>
 <div class="page-head">
-    <div>
+    <div data-live-region>
         <h1>Users</h1>
         <p class="muted"><?= e(number_format($total)) ?> <?= $status === 'active' && $canDisable ? 'active ' : ($status === 'disabled' ? 'disabled ' : '') ?><?= $total === 1 ? 'user' : 'users' ?><?= $search !== '' ? ' matching your search' : '' ?></p>
     </div>
@@ -42,7 +42,7 @@ $never = static fn($v): bool => $v === null || $v === '' || str_starts_with((str
         <form method="get" action="<?= e(url('/users')) ?>" class="search-form" role="search">
             <div class="search">
                 <?= icon('search', 16) ?>
-                <input type="search" name="q" value="<?= e($search) ?>" placeholder="Name, username, ID or email" aria-label="Search users" maxlength="64" data-submit-on-clear>
+                <input type="search" name="q" value="<?= e($search) ?>" placeholder="Name, username, ID or email" aria-label="Search users" maxlength="64" data-live-search>
             </div>
             <?php if ($canDisable): ?>
                 <select name="status" aria-label="Show" data-autosubmit>
@@ -67,7 +67,7 @@ $never = static fn($v): bool => $v === null || $v === '' || str_starts_with((str
     </div>
 <?php endif; ?>
 
-<div class="card">
+<div class="card" data-live-region>
     <?php if ($rows === []): ?>
         <p class="empty">
             <?php if ($status === 'active' && $canDisable): ?>

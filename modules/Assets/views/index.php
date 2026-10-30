@@ -32,7 +32,7 @@ $sortLink = static function (string $key, string $label, string $first) use ($so
 };
 ?>
 <div class="page-head">
-    <div>
+    <div data-live-region>
         <h1>Assets</h1>
         <p class="muted">
             <?= e(number_format($total)) ?> <?= $status === 'retired' ? 'retired ' : '' ?><?= $total === 1 ? 'asset' : 'assets' ?><?= $search !== '' ? ' matching your search' : '' ?>
@@ -42,7 +42,7 @@ $sortLink = static function (string $key, string $label, string $first) use ($so
         <form method="get" action="<?= e(url('/assets')) ?>" class="search-form" role="search">
             <div class="search">
                 <?= icon('search', 16) ?>
-                <input type="search" name="q" value="<?= e($search) ?>" placeholder="Asset #, serial or description" aria-label="Search assets" maxlength="64" data-submit-on-clear>
+                <input type="search" name="q" value="<?= e($search) ?>" placeholder="Asset #, serial or description" aria-label="Search assets" maxlength="64" data-live-search>
             </div>
             <?php if ($showStatus): ?>
                 <select name="status" aria-label="Show" data-autosubmit>
@@ -62,7 +62,7 @@ $sortLink = static function (string $key, string $label, string $first) use ($so
     </div>
 </div>
 
-<div class="card">
+<div class="card" data-live-region>
     <?php if ($rows === []): ?>
         <p class="empty"><?= $search !== '' ? 'No assets match your search.' : ($status === 'retired' ? 'No retired assets.' : 'No assets to show.') ?></p>
     <?php else: ?>
