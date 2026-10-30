@@ -122,6 +122,18 @@
     document.querySelectorAll('details.pick').forEach(function (details) {
         details.addEventListener('change', function () { pickText(details); });
     });
+    // The list floats over the page, so it closes like a drop-down: when you click elsewhere, press Esc, or open another.
+    function closePicks(except) {
+        document.querySelectorAll('details.pick[open]').forEach(function (d) { if (d !== except) { d.open = false; } });
+    }
+    document.addEventListener('click', function (ev) {
+        closePicks(ev.target.closest ? ev.target.closest('details.pick') : null);
+    });
+    document.addEventListener('keydown', function (ev) {
+        if (ev.key !== 'Escape') { return; }
+        var open = document.querySelector('details.pick[open]');
+        if (open) { open.open = false; var s = open.querySelector('summary'); if (s) { s.focus(); } }
+    });
 
     // ----- "Clear filters": empties every [data-live-filter] control in the panel, then refreshes the list -----
     document.querySelectorAll('[data-filter-clear]').forEach(function (btn) {
