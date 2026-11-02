@@ -46,4 +46,5 @@
         </form>
         <script src="https://accounts.google.com/gsi/client" async></script>
     <?php endif; ?>
+    <p class="auth-alt muted small"><a href="<?= e(url('/privacy')) ?>">Privacy policy</a></p>
 </div>

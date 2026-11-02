@@ -18,6 +18,7 @@ final class AuthModule extends Module
         $router->get('/login', [$this, 'showLogin'], ['public' => true]);
         $router->post('/login', [$this, 'login'], ['public' => true]);
         $router->post('/login/google', [$this, 'loginGoogle'], ['public' => true]);
+        $router->get('/privacy', [$this, 'privacy'], ['public' => true]); // Google's consent screen needs a public link to this
         $router->post('/logout', [$this, 'logout'], ['pending_ok' => true]);
 
         $router->get('/forgot', [$this, 'showForgot'], ['public' => true]);
@@ -83,6 +84,11 @@ final class AuthModule extends Module
             'googleClientId' => $google,
             'googleNonce'    => $nonce,
         ], 'auth');
+    }
+
+    public function privacy(Request $req): string
+    {
+        return $this->render('privacy', ['title' => 'Privacy policy', 'updated' => 'November 2, 2026', 'wide' => true], 'auth');
     }
 
     // ------------------------------------------------------------------ Google sign-in

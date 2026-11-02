@@ -608,6 +608,13 @@ code { font-size: .88em; background: var(--surface-2); padding: 1px 5px; border-
 @media (prefers-reduced-motion: reduce) { .toast, .toast.is-leaving { animation-duration: 1ms; } .toast-bar { display: none; } }
 
 .auth-alt { text-align: center; margin: 14px 0 0; font-size: .9rem; }
+/* Plain reading text (the privacy policy). */
+.prose { line-height: 1.55; }
+.prose h1 { font-size: 1.35rem; margin-bottom: 4px; }
+.prose h2 { margin: 20px 0 6px; }
+.prose p, .prose ul { margin: 0 0 10px; }
+.prose ul { padding-left: 20px; }
+.prose li { margin-bottom: 4px; }
 /* "or" rule between the password form and Google's button. */
 .auth-or { display: flex; align-items: center; gap: 12px; margin: 20px 0 16px; color: var(--muted); font-size: .85rem; }
 .auth-or::before, .auth-or::after { content: ""; flex: 1; border-top: 1px solid var(--border); }
