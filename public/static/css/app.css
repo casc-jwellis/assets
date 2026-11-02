@@ -608,3 +608,8 @@ code { font-size: .88em; background: var(--surface-2); padding: 1px 5px; border-
 @media (prefers-reduced-motion: reduce) { .toast, .toast.is-leaving { animation-duration: 1ms; } .toast-bar { display: none; } }
 
 .auth-alt { text-align: center; margin: 14px 0 0; font-size: .9rem; }
+/* "or" rule between the password form and Google's button. */
+.auth-or { display: flex; align-items: center; gap: 12px; margin: 20px 0 16px; color: var(--muted); font-size: .85rem; }
+.auth-or::before, .auth-or::after { content: ""; flex: 1; border-top: 1px solid var(--border); }
+/* Google's button sits in an iframe; a light colour scheme keeps it from getting an opaque box in dark mode. */
+.google-signin { display: flex; justify-content: center; color-scheme: light; min-height: 44px; }

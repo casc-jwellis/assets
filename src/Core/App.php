@@ -197,15 +197,40 @@ final class App
         return $this->modulesByName[$name] ?? null;
     }
 
+    private bool $googleSignIn = false;
+
+    /**
+     * The sign-in page shows Google's button, which loads a script, a frame and a stylesheet from accounts.google.com.
+     * Allow exactly those, and only for the page that calls this (it replaces the policy already sent).
+     *
+     * Google's script also writes inline styles into the page, so this page (and only this page) allows inline
+     * styles. Scripts stay locked to our own files plus Google's one script, and images, fonts and connections stay
+     * on this site, so a style cannot run code or send anything anywhere.
+     */
+    public function allowGoogleSignIn(): void
+    {
+        $this->googleSignIn = true;
+        $this->sendContentSecurityPolicy();
+    }
+
+    private function sendContentSecurityPolicy(): void
+    {
+        $g = $this->googleSignIn;
+        // Scripts: our own files plus the per-request nonce'd theme bootstrap. No inline styles.
+        header("Content-Security-Policy: default-src 'self'; "
+            . "script-src 'self' 'nonce-{$this->nonce}'" . ($g ? ' https://accounts.google.com/gsi/client' : '') . '; '
+            . "style-src 'self'" . ($g ? " 'unsafe-inline' https://accounts.google.com/gsi/style" : '') . '; '
+            . ($g ? 'frame-src https://accounts.google.com/gsi/; connect-src \'self\' https://accounts.google.com/gsi/; ' : '')
+            . "img-src 'self' data:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
+    }
+
     public function sendSecurityHeaders(): void
     {
         header('X-Content-Type-Options: nosniff');
         header('X-Frame-Options: DENY');
         header('Referrer-Policy: same-origin');
         header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
-        // Scripts: our own files plus the per-request nonce'd theme bootstrap. No inline styles.
-        header("Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{$this->nonce}'; "
-            . "style-src 'self'; img-src 'self' data:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
+        $this->sendContentSecurityPolicy();
         if ($this->request->isSecure()) {
             header('Strict-Transport-Security: max-age=31536000');
         }

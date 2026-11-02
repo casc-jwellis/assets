@@ -147,15 +147,56 @@ final class Auth
             $this->setPassword((int) $row['user_id'], $password);
         }
 
+        $this->signIn((int) $row['user_id']);
+        return true;
+    }
+
+    /** Start the session for someone who has already proved who they are (a correct password, or Google). */
+    public function signIn(int $userId): void
+    {
         $this->session->regenerate(); // prevent session fixation
         $this->csrf->rotate();
-        $this->session->set('auth.uid', (int) $row['user_id']);
+        $this->session->set('auth.uid', $userId);
         $this->session->set('auth.seen', time());
         $this->loaded = false;
         $this->user = null;
 
-        $this->db->execute('UPDATE users SET lastlogin = ? WHERE user_id = ?', [date('Y-m-d H:i:s'), $row['user_id']]);
-        return true;
+        $this->db->execute('UPDATE users SET lastlogin = ? WHERE user_id = ?', [date('Y-m-d H:i:s'), $userId]);
+    }
+
+    /**
+     * Every account whose email address is this one (ignoring capitals). Normally zero or one; Google sign-in only
+     * proceeds on exactly one. Never includes the password hash.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function usersByEmail(string $email): array
+    {
+        if ($email === '' || has_wide_chars($email)) {
+            return [];
+        }
+        $rows = $this->db->all('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', [$email]);
+        foreach ($rows as &$row) {
+            unset($row['password']);
+        }
+        return $rows;
+    }
+
+    /**
+     * A temporary password was emailed to this person, but they have just proved who they are another way, so it is
+     * no longer needed: make it unusable and drop the "must choose a new password" flag. A password can still be
+     * set later with "Forgot password?".
+     */
+    public function retireTemporaryPassword(int $userId): void
+    {
+        try {
+            $this->db->execute(
+                'UPDATE users SET password = ?, must_change_password = 0 WHERE user_id = ?',
+                [password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT), $userId]
+            );
+        } catch (\PDOException) {
+            // migration 017 not applied: there is no temporary password to retire
+        }
     }
 
     public function logout(): void

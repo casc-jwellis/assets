@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Auth;
 
 use App\Core\Auth;
+use App\Core\GoogleIdToken;
 use App\Core\Module;
 use App\Core\Request;
 use App\Core\Router;
@@ -16,6 +17,7 @@ final class AuthModule extends Module
     {
         $router->get('/login', [$this, 'showLogin'], ['public' => true]);
         $router->post('/login', [$this, 'login'], ['public' => true]);
+        $router->post('/login/google', [$this, 'loginGoogle'], ['public' => true]);
         $router->post('/logout', [$this, 'logout'], ['pending_ok' => true]);
 
         $router->get('/forgot', [$this, 'showForgot'], ['public' => true]);
@@ -44,24 +46,102 @@ final class AuthModule extends Module
         $password = (string) $req->post('password');
 
         if ($this->app->auth->attempt($username, $password)) {
-            // Only ever redirect to an internal path we stored ourselves.
-            $next = $this->app->session->get('auth.next');
-            $this->app->session->forget('auth.next');
-            $this->redirect(is_string($next) && str_starts_with($next, '/') && $next !== '/login' ? $next : '/');
+            $this->afterSignIn();
         }
 
         http_response_code(401);
         return $this->loginPage($username, 'Invalid username or password.'); // same message for unknown user / wrong password
     }
 
+    /** Signed in: go back to the page they were headed for. Only ever an internal path we stored ourselves. */
+    private function afterSignIn(): never
+    {
+        $next = $this->app->session->get('auth.next');
+        $this->app->session->forget('auth.next');
+        $this->redirect(is_string($next) && str_starts_with($next, '/') && $next !== '/login' ? $next : '/');
+    }
+
     private function loginPage(string $username, ?string $error): string
     {
+        $google = $this->googleClientId();
+        $nonce = null;
+        if ($google !== null) {
+            // One value per visitor, kept until it is used: Google puts it inside the signed token, and
+            // loginGoogle() only accepts a token carrying the nonce of the session it arrives in.
+            $nonce = $this->app->session->get('auth.gnonce');
+            if (!is_string($nonce) || $nonce === '') {
+                $nonce = bin2hex(random_bytes(16));
+                $this->app->session->set('auth.gnonce', $nonce);
+            }
+            $this->app->allowGoogleSignIn();
+        }
         return $this->render('login', [
-            'title'    => 'Sign in',
-            'username' => $username,
-            'error'    => $error,
-            'canReset' => $this->resets()->available(),
+            'title'          => 'Sign in',
+            'username'       => $username,
+            'error'          => $error,
+            'canReset'       => $this->resets()->available(),
+            'googleClientId' => $google,
+            'googleNonce'    => $nonce,
         ], 'auth');
+    }
+
+    // ------------------------------------------------------------------ Google sign-in
+
+    /** The client ID to show the button for, or null when Google sign-in is off, not set up, or cannot work on this server. */
+    private function googleClientId(): ?string
+    {
+        $s = $this->app->settings;
+        $id = (string) $s->get('google.client_id', '');
+        if ($s->get('google.enabled') !== '1' || preg_match(GoogleIdToken::CLIENT_ID, $id) !== 1 || GoogleIdToken::problem() !== null) {
+            return null;
+        }
+        return $id;
+    }
+
+    /**
+     * Google's button hands the browser a signed token; app.js posts it here (same site, with our own form token).
+     * It is believed only after GoogleIdToken has checked the signature and that it was made for this site and this
+     * sign-in page. The account is then the one user whose email address is the verified one in the token.
+     */
+    public function loginGoogle(Request $req): string
+    {
+        $clientId = $this->googleClientId();
+        $nonce = $this->app->session->get('auth.gnonce');
+        $this->app->session->forget('auth.gnonce'); // one try per page load, whatever happens
+
+        if ($clientId === null || !is_string($nonce)) {
+            http_response_code(400);
+            return $this->loginPage('', 'Google sign-in is not available right now. Reload the page and try again.');
+        }
+
+        try {
+            $claims = (new GoogleIdToken(GoogleIdToken::cacheFile()))->verify((string) $req->post('credential'), $clientId, $nonce);
+        } catch (\RuntimeException $e) {
+            error_log('Google sign-in refused: ' . $e->getMessage());
+            http_response_code(401);
+            return $this->loginPage('', 'Google sign-in could not be verified. Please try again.');
+        }
+
+        $email = (string) $claims['email'];
+        $matches = $this->app->auth->usersByEmail($email);
+        if (count($matches) !== 1) {
+            http_response_code(403);
+            return $this->loginPage('', $matches === []
+                ? 'No account here uses ' . $email . '. Ask an administrator to add that address to your profile.'
+                : 'More than one account uses ' . $email . ', so it is not clear which is yours. Ask an administrator to fix that.');
+        }
+        $user = $matches[0];
+        if (!empty($user['disabled'])) {
+            http_response_code(403);
+            return $this->loginPage('', 'Your account has been disabled.');
+        }
+
+        $uid = (int) $user['user_id'];
+        if (!empty($user['must_change_password'])) {
+            $this->app->auth->retireTemporaryPassword($uid);
+        }
+        $this->app->auth->signIn($uid);
+        $this->afterSignIn();
     }
 
     public function logout(Request $req): never

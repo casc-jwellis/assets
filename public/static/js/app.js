@@ -405,6 +405,15 @@
         }
     })();
 
+    // ----- Google sign-in (login page): Google's button calls this with a signed token; send it to our own server -----
+    window.assetsGoogleSignIn = function (response) {
+        var form = document.getElementById('google-form');
+        if (form && response && response.credential) {
+            form.elements.credential.value = response.credential;
+            form.submit();
+        }
+    };
+
     // ----- Mobile sidebar -----
     var body = document.body;
     document.querySelectorAll('[data-nav-toggle]').forEach(function (btn) {

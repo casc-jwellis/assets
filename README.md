@@ -167,6 +167,31 @@ sends them to choosing their own; the temporary password cannot be reused. If th
 or the server refuses), the user is still created and the temporary password is shown to you **once**, on that page, so you
 can pass it on. It is never stored in readable form, never put in the email log, and not shown again. An administrator or Asset Manager cannot set someone's password: people choose their own, or use **Forgot password?** on the sign-in page (below). The Department access table has an **All departments** row to set None, Read or Read & write for every department at once. Needs migration `017` (until it is applied the
 page keeps its old password boxes). Passwords are 10 to 64 characters wherever one is set (your own account, editing a user, the setup wizard); the limit is counted in bytes, so letters outside A to Z count as more than one. Signing in is not limited, so an older, longer password still works.
+### Signing in with Google
+
+An administrator turns this on from **Sign-in** in the sidebar (needs migration `015`). The sign-in page then shows Google's
+button under the password form; passwords keep working, which is the way in if Google is unavailable. Setup in Google
+(the page repeats these steps with this site's address filled in): in the Google Cloud console create an OAuth client of
+type *Web application*, add this site's address under **Authorized JavaScript origins** (`https://` unless it is
+`localhost`; no redirect URI is needed), set the consent screen to **External** and **publish** it (in *Testing* only
+named people can sign in), then paste the **client ID** (not a secret; it is stored in the `settings` table) on the page.
+
+- **Any Google account can try; only matching ones get in.** The person must have a user here whose email address is the
+  verified one in Google's token (capitals ignored). No match, two matches, or a disabled user means no sign-in, with a
+  message saying which. Nobody is created automatically, and roles and department access are unchanged.
+- **The token is checked here, not trusted.** `src/Core/GoogleIdToken.php` verifies the RS256 signature against Google's
+  published keys (cached in `storage/google-certs.json`, refetched when Google rotates them), then the issuer, that it was
+  issued to this site's client ID, expiry, a verified email, and a **one-time nonce** tied to the visitor's session: a
+  token captured from one page cannot be replayed in another. The browser posts it to `/login/google` as an ordinary form
+  with the usual CSRF token.
+- **A pending temporary password is switched off** when that person signs in with Google (they have proved who they are
+  the same way the emailed password did); **Forgot password?** can set a real one later.
+- The sign-in page, and only that page, widens the Content-Security-Policy for Google's script, frame and stylesheet, and
+  allows inline styles (Google's script writes some). Scripts, images and connections stay locked to this site and Google's
+  one script.
+- The server needs the `openssl` extension and outgoing HTTPS (curl or `allow_url_fopen`) to `www.googleapis.com`; saving
+  the settings checks that and warns if it cannot reach Google. Gmail ignores dots and `+tags` in addresses, but matching
+  here is on the address exactly as stored, so enter it as Google shows it.
 ### Migrations
 
 `migrations/*.sql` are applied once each, in filename order, and recorded in a `schema_migrations` table.
@@ -248,7 +273,7 @@ departments a user has access to (admins see everything). New icons go in `src/C
 ## Security notes
 
 - **SQL**: PDO with real (non-emulated) prepared statements; user input is never concatenated into SQL.
-- **XSS**: all output goes through `e()` (`htmlspecialchars`, `ENT_QUOTES`, UTF-8); CSP forbids inline styles and un-nonced scripts.
+- **XSS**: all output goes through `e()` (`htmlspecialchars`, `ENT_QUOTES`, UTF-8); CSP forbids inline styles and un-nonced scripts (except inline styles on the sign-in page when Google sign-in is on, see above).
 - **Passwords**: `password_hash()` / `password_verify()`; unknown usernames take the same code path as bad passwords.
 - **Sessions**: HttpOnly + SameSite=Lax cookie, strict mode, ID regenerated on login, idle timeout (default 30 min).
 - **Department access**: Read lets a user see a department's assets and mark them verified ("Mark verified" records who and when, and changes nothing else); Read & write also allows adding, editing, transferring and retiring. Retired assets cannot be verified.
