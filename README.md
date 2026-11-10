@@ -80,7 +80,7 @@ replaces the one entered during setup. The browser tab icon is the same box as t
 
 ### Reference data (departments, buildings, asset types)
 
-**Reference data** in the sidebar (administrators only) adds, renames and deletes the lists assets are sorted into:
+**Reference data** in the sidebar (administrators and Asset Managers) adds, renames and deletes the lists assets are sorted into:
 departments, buildings and asset types. Each list has its own tab (`/lists?tab=buildings` and so on), with the number of
 entries on the tab, and shows how many assets (and, for departments, users) use every entry. Saving, cancelling or deleting
 returns you to the same tab.
@@ -134,7 +134,8 @@ An administrator sets a person's **Role** on their user page (migration `018` ad
 | User accounts | no | create, edit, reset passwords, disable and re-enable **ordinary accounts only** | all accounts, and merging |
 | Department access they can give | n/a | **Read only** (None or Read) | None, Read, Read & write |
 | Role of an account they create | n/a | always an ordinary user | any |
-| Theme, Email, Reference data, Migrations, Import | no | no | yes |
+| Reference data (departments, buildings, asset types; including merging departments) | no | yes | yes |
+| Theme, Email, Sign-in, Migrations, Import | no | no | yes |
 
 An Asset Manager sees no administrators or other Asset Managers in the user list and gets "Access denied" if they open
 one by address. Where an administrator gave a user Read & write on a department, an Asset Manager sees it as locked text:

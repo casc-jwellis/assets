@@ -9,7 +9,7 @@ use App\Core\Request;
 use App\Core\Router;
 
 /**
- * Reference data (administrators only): add, rename and delete departments, buildings and asset types.
+ * Reference data (administrators and Asset Managers): add, rename and delete departments, buildings and asset types.
  *
  * Rules that protect the data:
  *  - A department is tied to the transfer history by its ABBREVIATION (the history stores "IT", not an id), and the
@@ -46,24 +46,24 @@ final class ListsModule extends Module
 
     public function routes(Router $router): void
     {
-        $admin = ['admin' => true];
+        $manager = ['manager' => true]; // administrators and Asset Managers
         $k = '{kind:departments|buildings|types}';
-        $router->get('/lists', [$this, 'index'], $admin);
+        $router->get('/lists', [$this, 'index'], $manager);
         // Fixed paths first: "new" would also match the {id} pattern.
-        $router->get("/lists/{$k}/new", [$this, 'showNew'], $admin);
-        $router->post("/lists/{$k}/new", [$this, 'create'], $admin);
-        $router->get("/lists/{$k}/{id:\\d+}", [$this, 'showEdit'], $admin);
-        $router->post("/lists/{$k}/{id:\\d+}", [$this, 'update'], $admin);
-        $router->get("/lists/{$k}/{id:\\d+}/delete", [$this, 'showDelete'], $admin);
-        $router->post("/lists/{$k}/{id:\\d+}/delete", [$this, 'delete'], $admin);
+        $router->get("/lists/{$k}/new", [$this, 'showNew'], $manager);
+        $router->post("/lists/{$k}/new", [$this, 'create'], $manager);
+        $router->get("/lists/{$k}/{id:\\d+}", [$this, 'showEdit'], $manager);
+        $router->post("/lists/{$k}/{id:\\d+}", [$this, 'update'], $manager);
+        $router->get("/lists/{$k}/{id:\\d+}/delete", [$this, 'showDelete'], $manager);
+        $router->post("/lists/{$k}/{id:\\d+}/delete", [$this, 'delete'], $manager);
         // Only departments can be merged.
-        $router->get('/lists/departments/{id:\\d+}/merge', [$this, 'showMerge'], $admin);
-        $router->post('/lists/departments/{id:\\d+}/merge', [$this, 'merge'], $admin);
+        $router->get('/lists/departments/{id:\\d+}/merge', [$this, 'showMerge'], $manager);
+        $router->post('/lists/departments/{id:\\d+}/merge', [$this, 'merge'], $manager);
     }
 
     public function nav(): array
     {
-        return [['label' => 'Reference data', 'path' => '/lists', 'icon' => 'layers', 'order' => 82, 'admin' => true]];
+        return [['label' => 'Reference data', 'path' => '/lists', 'icon' => 'layers', 'order' => 82, 'manager' => true]];
     }
 
     // ------------------------------------------------------------ the overview
