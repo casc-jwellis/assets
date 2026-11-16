@@ -48,14 +48,20 @@ label; screen readers are told which), or "Never" if neither has happened. An as
 and in the CSV export ("Last verified", "Last not found", and "Audit status", which says what the list's Status column
 shows: `Verified 2026-01-10`, `Not found 2026-06-01` or `Never`). Sorting by Status uses the same more recent date.
 
+The **Audit status** filter follows the same rule, and a not-found result counts as audited (someone looked, and the date records
+when it failed the check): **Not found** (the latest result is not found), **Verified** (the latest result is verified),
+**Never audited** (neither, ever) and **Not audited since…** a date (neither a verified nor a not-found result on or after it,
+which is the "still to check" list during an audit). The dashboard's **Never audited** and **Not found** cards link to the
+same filtered lists. Links saved before this change keep working (`ver=ever` means Verified); the not-found choices appear once
+migration `020` is applied.
+
 ### Searching, filtering and exporting assets
 
 The search box on the **Assets** list searches as you type (asset number, serial, description and location; location is the
 building and room, written `SCI204` or `SCI 204`). The **Filter** button opens a panel that narrows the list by any field:
 pick one or more types, departments, purchasing departments, buildings and disposal methods; "contains" text on asset number,
-serial, description, PO number, room, notes and retirement notes; a cost range; from/to dates for purchased, verified, added, last
-changed and retired; verification (never verified, has been verified, not verified since a date); and who added or last changed
-an asset. Filters combine with each other, with the search box and with the **Show** menu (retired assets stay hidden until it is
+serial, description, PO number, room, notes and retirement notes; a cost range; from/to dates for purchased, verified, not found,
+added, last changed and retired; **audit status** (below); and who added or last changed an asset. Filters combine with each other, with the search box and with the **Show** menu (retired assets stay hidden until it is
 set to Retired or All). Each filter in use appears as a chip you can click to remove. The filters live in the address
 (`?f[...]`), so a filtered list can be bookmarked or shared, and the bulk Transfer / Retire buttons and "Select all N matching"
 act on the filtered list. Department access limits still apply on top of everything.

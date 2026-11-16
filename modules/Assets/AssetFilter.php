@@ -6,7 +6,7 @@ namespace App\Modules\Assets;
 
 /**
  * The advanced filters on the asset list ("Filter" button): pick-from-a-list fields, "contains" text fields, a cost
- * range, date ranges, verification and who added / last changed an asset.
+ * range, date ranges, audit status (verified / not found, see AssetsModule::audit) and who added / last changed an asset.
  *
  * Everything arrives in the address as ?f[...]=...; fromQuery() keeps only values it can validate, and the SQL below is
  * built from fixed column names with every value passed as a parameter, so nothing typed can reach a query. The same
@@ -14,7 +14,7 @@ namespace App\Modules\Assets;
  */
 final class AssetFilter
 {
-    /** Pick from a list: key => [column, label, needs]. "needs" is '' or a schema feature: 'editing' or 'retirement'. */
+    /** Pick from a list: key => [column, label, needs]. "needs" is '' or a schema feature: 'editing', 'retirement' or 'notfound'. */
     public const PICKS = [
         'type'      => ['a.type_id', 'Type', ''],
         'dept'      => ['a.department_id', 'Department', ''],
@@ -38,6 +38,7 @@ final class AssetFilter
     public const DATES = [
         'purchased' => ['a.purchase_date', 'Purchased', ''],
         'verified'  => ['a.verified_date', 'Verified', ''],
+        'notfound'  => ['a.not_found_date', 'Not found', 'notfound'],
         'created'   => ['a.created_date', 'Added', ''],
         'changed'   => ['a.updated_date', 'Last changed', 'editing'],
         'retired'   => ['a.retired_date', 'Retired', 'retirement'],
@@ -49,12 +50,18 @@ final class AssetFilter
         'chg' => ['a.updated_by', 'Last changed by', 'editing'],
     ];
 
-    /** Verification: '' (any), never verified, verified at some time, or not verified since a date. */
-    public const VERIFICATION = [
-        ''      => 'Any',
-        'never' => 'Never verified',
-        'ever'  => 'Has been verified',
-        'stale' => 'Not verified since…',
+    /**
+     * Audit status: '' (any); the latest audit result is "not found" or "verified"; never audited (neither result, ever);
+     * or not audited since a date (neither result on or after it). A "not found" result counts as audited: someone looked.
+     * 'notfound' needs migration 020 (assets.not_found_date). The key 'ver' and the old value 'ever' (now 'verified')
+     * are what earlier links carry, so they keep working.
+     */
+    public const AUDIT = [
+        ''         => 'Any',
+        'notfound' => 'Not found',
+        'verified' => 'Verified',
+        'never'    => 'Never audited',
+        'stale'    => 'Not audited since…',
     ];
 
     private const MAX_PICKED = 200;
@@ -63,7 +70,7 @@ final class AssetFilter
     /** @var array<string, string|int|list<int|string>> only the filters that are in use */
     private array $values = [];
 
-    private function __construct(private bool $editing, private bool $retirement)
+    private function __construct(private bool $editing, private bool $retirement, private bool $notFound)
     {
     }
 
@@ -71,10 +78,11 @@ final class AssetFilter
      * @param array<mixed> $raw the ?f[...] part of the address, exactly as received
      * @param bool $editing   migration 005 (updated_date / updated_by) is applied
      * @param bool $retirement migration 006 (retired_* / disposal_method) is applied
+     * @param bool $notFound  migration 020 (not_found_date) is applied
      */
-    public static function fromQuery(array $raw, bool $editing, bool $retirement): self
+    public static function fromQuery(array $raw, bool $editing, bool $retirement, bool $notFound): self
     {
-        $f = new self($editing, $retirement);
+        $f = new self($editing, $retirement, $notFound);
 
         foreach (self::PICKS as $key => [, , $needs]) {
             if (!$f->allows($needs) || !isset($raw[$key]) || !is_array($raw[$key])) {
@@ -132,7 +140,8 @@ final class AssetFilter
         }
 
         $ver = isset($raw['ver']) && is_string($raw['ver']) ? $raw['ver'] : '';
-        if ($ver === 'never' || $ver === 'ever') {
+        $ver = $ver === 'ever' ? 'verified' : $ver; // the value earlier links carry
+        if ($ver === 'never' || $ver === 'verified' || ($ver === 'notfound' && $f->notFound)) {
             $f->values['ver'] = $ver;
         } elseif ($ver === 'stale') {
             $since = self::date($raw['ver_before'] ?? null);
@@ -157,7 +166,14 @@ final class AssetFilter
 
     private function allows(string $needs): bool
     {
-        return $needs === '' || ($needs === 'editing' && $this->editing) || ($needs === 'retirement' && $this->retirement);
+        return $needs === '' || ($needs === 'editing' && $this->editing) || ($needs === 'retirement' && $this->retirement)
+            || ($needs === 'notfound' && $this->notFound);
+    }
+
+    /** The audit status choices on offer ("not found" needs migration 020). @return array<string,string> */
+    public function auditOptions(): array
+    {
+        return $this->notFound ? self::AUDIT : array_diff_key(self::AUDIT, ['notfound' => true]);
     }
 
     /** Is this filter offered at all (the schema it needs exists)? */
@@ -234,7 +250,7 @@ final class AssetFilter
             }
         }
         if (isset($this->values['ver'])) {
-            $add($this->values['ver'] === 'stale' ? 'Not verified since ' . $this->values['ver_before'] : self::VERIFICATION[$this->values['ver']], ['ver', 'ver_before']);
+            $add($this->values['ver'] === 'stale' ? 'Not audited since ' . $this->values['ver_before'] : 'Audit: ' . self::AUDIT[$this->values['ver']], ['ver', 'ver_before']);
         }
         foreach (self::PEOPLE as $key => [, $label]) {
             if (isset($this->values[$key])) {
@@ -295,14 +311,25 @@ final class AssetFilter
             }
         }
 
+        // The latest audit result is the more recent of verified_date and not_found_date; a tie counts as "not found"
+        // (the same rule as AssetsModule::audit, so the list and this filter always agree).
         $ver = $this->values['ver'] ?? '';
-        if ($ver === 'never') {
-            $sql[] = 'a.verified_date IS NULL';
-        } elseif ($ver === 'ever') {
-            $sql[] = 'a.verified_date IS NOT NULL';
+        if ($ver === 'notfound') {
+            $sql[] = '(a.not_found_date IS NOT NULL AND (a.verified_date IS NULL OR a.not_found_date >= a.verified_date))';
+        } elseif ($ver === 'verified') {
+            $sql[] = $this->notFound
+                ? '(a.verified_date IS NOT NULL AND (a.not_found_date IS NULL OR a.verified_date > a.not_found_date))'
+                : 'a.verified_date IS NOT NULL';
+        } elseif ($ver === 'never') {
+            $sql[] = $this->notFound ? '(a.verified_date IS NULL AND a.not_found_date IS NULL)' : 'a.verified_date IS NULL';
         } elseif ($ver === 'stale') {
+            $since = $this->values['ver_before'] . ' 00:00:00';
             $sql[] = '(a.verified_date IS NULL OR a.verified_date < ?)';
-            $params[] = $this->values['ver_before'] . ' 00:00:00';
+            $params[] = $since;
+            if ($this->notFound) {
+                $sql[] = '(a.not_found_date IS NULL OR a.not_found_date < ?)';
+                $params[] = $since;
+            }
         }
 
         foreach (self::PEOPLE as $key => [$column]) {

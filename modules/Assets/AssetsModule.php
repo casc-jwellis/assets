@@ -94,7 +94,7 @@ final class AssetsModule extends Module
     /** The advanced filters in the address (?f[...]), validated; filters whose columns are not in the database yet are left out. */
     private function filters(Request $req): AssetFilter
     {
-        return AssetFilter::fromQuery($req->queryArray('f'), $this->editingReady(), $this->retirementReady());
+        return AssetFilter::fromQuery($req->queryArray('f'), $this->editingReady(), $this->retirementReady(), $this->notFoundReady());
     }
 
     /** The list view to return to: search text, page, status filter, advanced filters and sort (see Module::listState). */

@@ -29,13 +29,22 @@ final class DashboardModule extends Module
         $retirement = $this->app->migrationApplied('006_asset_retirement.sql');
         $active = $retirement ? ' AND a.retired = 0' : '';
 
+        // "Never audited" means neither verified nor marked not found; "Not found" is the latest audit result being not found
+        // (the same rules as the Audit status filter on the asset list). Both need migration 020.
+        $notFoundReady = $this->app->migrationApplied('020_asset_not_found.sql');
+        $never = $notFoundReady ? 'a.verified_date IS NULL AND a.not_found_date IS NULL' : 'a.verified_date IS NULL';
+        $notFound = $notFoundReady
+            ? 'COALESCE(SUM(CASE WHEN a.not_found_date IS NOT NULL AND (a.verified_date IS NULL OR a.not_found_date >= a.verified_date) THEN 1 ELSE 0 END), 0)'
+            : '0';
+
         $stats = $db->one(
             "SELECT COUNT(*) AS total,
                     COALESCE(SUM(a.cost), 0) AS total_cost,
-                    COALESCE(SUM(CASE WHEN a.verified_date IS NULL THEN 1 ELSE 0 END), 0) AS unverified
+                    COALESCE(SUM(CASE WHEN {$never} THEN 1 ELSE 0 END), 0) AS never_audited,
+                    {$notFound} AS not_found
                FROM assets a WHERE {$scope}{$active}",
             $params
-        ) ?? ['total' => 0, 'total_cost' => 0, 'unverified' => 0];
+        ) ?? ['total' => 0, 'total_cost' => 0, 'never_audited' => 0, 'not_found' => 0];
 
         $retired = $retirement
             ? (int) $db->value("SELECT COUNT(*) FROM assets a WHERE {$scope} AND a.retired = 1", $params)
@@ -57,6 +66,7 @@ final class DashboardModule extends Module
             'title'   => 'Dashboard',
             'stats'   => $stats,
             'retired' => $retired,
+            'notFoundReady' => $notFoundReady,
             'recent'  => $recent,
         ]);
     }

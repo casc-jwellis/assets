@@ -1,4 +1,4 @@
-<?php /** Expects $stats (array), $retired (int|null), $recent (list of asset rows). */ ?>
+<?php /** Expects $stats (array), $retired (int|null), $notFoundReady (bool: migration 020 applied), $recent (list of asset rows). */ ?>
 <div class="page-head">
     <div>
         <h1>Welcome back, <?= e(current_user()['firstname'] ?: current_user()['username']) ?></h1>
@@ -15,10 +15,16 @@
         <div class="stat-label">Total cost</div>
         <div class="stat-value">$<?= e(number_format((float) $stats['total_cost'], 2)) ?></div>
     </div>
-    <div class="card stat">
-        <div class="stat-label">Never verified</div>
-        <div class="stat-value"><?= e(number_format((int) $stats['unverified'])) ?></div>
-    </div>
+    <a class="card stat stat-link" href="<?= e(url('/assets') . '?' . http_build_query(['f' => ['ver' => 'never']])) ?>">
+        <div class="stat-label">Never audited</div>
+        <div class="stat-value"><?= e(number_format((int) $stats['never_audited'])) ?></div>
+    </a>
+    <?php if ($notFoundReady): ?>
+        <a class="card stat stat-link" href="<?= e(url('/assets') . '?' . http_build_query(['f' => ['ver' => 'notfound']])) ?>">
+            <div class="stat-label">Not found</div>
+            <div class="stat-value"><?= e(number_format((int) $stats['not_found'])) ?></div>
+        </a>
+    <?php endif; ?>
     <?php if ($retired !== null): ?>
         <a class="card stat stat-link" href="<?= e(url('/assets') . '?status=retired') ?>">
             <div class="stat-label">Retired</div>

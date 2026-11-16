@@ -144,17 +144,17 @@ $fv = static fn(string $k): string => (string) $filters->value($k);
     </fieldset>
 
     <fieldset class="filter-group">
-        <legend>Verification and people</legend>
+        <legend>Audit and people</legend>
         <div class="filter-grid wide">
             <div class="field">
-                <label for="f-ver">Verification</label>
+                <label for="f-ver">Audit status</label>
                 <div class="range">
                     <select id="f-ver" name="f[ver]" <?= $fa ?>>
-                        <?php foreach (AssetFilter::VERIFICATION as $value => $text): ?>
+                        <?php foreach ($filters->auditOptions() as $value => $text): ?>
                             <option value="<?= e($value) ?>"<?= $fv('ver') === (string) $value ? ' selected' : '' ?>><?= e($text) ?></option>
                         <?php endforeach; ?>
                     </select>
-                    <input type="date" name="f[ver_before]" value="<?= e($fv('ver_before')) ?>" aria-label="Not verified since (used when “Not verified since…” is chosen)" <?= $fa ?>>
+                    <input type="date" name="f[ver_before]" value="<?= e($fv('ver_before')) ?>" aria-label="Not audited since (used when “Not audited since…” is chosen)" <?= $fa ?>>
                 </div>
             </div>
             <?php foreach (AssetFilter::PEOPLE as $key => [, $label]): ?>
