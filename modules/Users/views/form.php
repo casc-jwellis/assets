@@ -121,7 +121,7 @@ $never = $user === null || $user['lastlogin'] === null || str_starts_with((strin
                 <?php if (!$managerReady): ?><small class="muted">Apply the latest migrations (Migrations page) to add the Asset Manager role.</small><?php endif; ?>
             </div>
         <?php else: ?>
-            <p class="muted small">This will be an ordinary user account. Department access you give is Read only (see and mark verified).</p>
+            <p class="muted small">This will be an ordinary user account. Department access you give is Read only (see, and mark verified or not found).</p>
         <?php endif; ?>
     </div>
 
@@ -152,7 +152,7 @@ $never = $user === null || $user['lastlogin'] === null || str_starts_with((strin
 
     <div class="card form-card wide section">
         <div class="card-head"><h2>Department access</h2></div>
-        <p class="muted small perm-note">Controls which departments' assets this person can see and mark verified (Read)<?= $actorAdmin ? ' and also change (Read &amp; write)' : '' ?>. Administrators and Asset Managers can access every department regardless.<?= $actorAdmin ? '' : ' Read &amp; write is set by an administrator.' ?></p>
+        <p class="muted small perm-note">Controls which departments' assets this person can see and mark verified or not found (Read)<?= $actorAdmin ? ' and also change (Read &amp; write)' : '' ?>. Administrators and Asset Managers can access every department regardless.<?= $actorAdmin ? '' : ' Read &amp; write is set by an administrator.' ?></p>
         <div class="table-wrap">
             <table class="table perm-table" data-perm-table>
                 <thead><tr><th>Department</th><th class="center">None</th><th class="center">Read</th><?php if ($actorAdmin): ?><th class="center">Read &amp; write</th><?php endif; ?></tr></thead>

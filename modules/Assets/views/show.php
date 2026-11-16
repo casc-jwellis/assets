@@ -1,6 +1,9 @@
 <?php
 /** Expects $a (asset row with joined names), $transfers (list), $depreciation (array|null), $updatedBy (string),
- *  $retired (bool), $retiredBy (string), $canEdit, $canVerify, $canRetire, $canRestore (bool), $attachmentsCard (HTML), $listQs (string). */
+ *  $retired (bool), $retiredBy (string), $canEdit, $canVerify, $canNotFound, $canRetire, $canRestore (bool), $attachmentsCard (HTML), $listQs (string). */
+use App\Modules\Assets\AssetsModule;
+
+$audit = AssetsModule::audit($a); // the more recent of verified / not found, the same as the list shows
 $creator = trim(($a['creator_first'] ?? '') . ' ' . ($a['creator_last'] ?? '')) ?: (string) ($a['creator_username'] ?? '');
 $location = trim(($a['building_name'] ?? '') . ($a['room'] !== '' ? ', room ' . $a['room'] : ''), ', ');
 ?>
@@ -14,15 +17,23 @@ $location = trim(($a['building_name'] ?? '') . ($a['room'] !== '' ? ', room ' . 
         <span class="badge"><?= e($a['dept_abbr']) ?></span>
         <?php if ($retired): ?>
             <span class="badge badge-danger">Retired</span>
-        <?php elseif (empty($a['verified_date'])): ?>
+        <?php elseif ($audit['state'] === 'not_found'): ?>
+            <span class="badge badge-danger">Not found <?= e(fmt_date($audit['date'])) ?></span>
+        <?php elseif ($audit['state'] === 'never'): ?>
             <span class="badge badge-warn">Never verified</span>
         <?php else: ?>
-            <span class="badge badge-ok">Verified <?= e(fmt_date($a['verified_date'])) ?></span>
+            <span class="badge badge-ok">Verified <?= e(fmt_date($audit['date'])) ?></span>
         <?php endif; ?>
         <?php if ($canVerify): ?>
             <form method="post" action="<?= e(url('/assets/' . (int) $a['asset_id'] . '/verify') . $listQs) ?>" class="inline-form">
                 <?= csrf_field() ?>
                 <button type="submit" class="btn" title="Record that this asset was physically checked today">Mark verified</button>
+            </form>
+        <?php endif; ?>
+        <?php if ($canNotFound): ?>
+            <form method="post" action="<?= e(url('/assets/' . (int) $a['asset_id'] . '/not-found') . $listQs) ?>" class="inline-form">
+                <?= csrf_field() ?>
+                <button type="submit" class="btn btn-danger" title="Record that this asset could not be found during an audit">Not found</button>
             </form>
         <?php endif; ?>
         <?php if ($canEdit): ?>
@@ -81,6 +92,9 @@ $location = trim(($a['building_name'] ?? '') . ($a['room'] !== '' ? ', room ' . 
             </dd>
         </div>
         <div><dt>Last verified</dt><dd><?= e(fmt_date($a['verified_date'])) ?></dd></div>
+        <?php if (array_key_exists('not_found_date', $a)): /* once migration 020 is applied */ ?>
+            <div><dt>Last not found</dt><dd><?= e(fmt_date($a['not_found_date'])) ?></dd></div>
+        <?php endif; ?>
         <div><dt>Added by</dt><dd><?= e($creator !== '' ? $creator : 'Missing user') ?></dd></div>
         <div><dt>Added on</dt><dd><?= e(fmt_date($a['created_date'])) ?></dd></div>
         <?php if (!empty($a['updated_date'])): ?>

@@ -6,6 +6,7 @@
  * choices for each pick field and person select: value => label).
  */
 use App\Modules\Assets\AssetFilter;
+use App\Modules\Assets\AssetsModule;
 
 // The sort as it goes in a link: nothing for the default order (asset number, A to Z).
 $sortQuery = static fn(string $key, string $d): array => [
@@ -29,7 +30,7 @@ $filterCount = $filters->count();
 // Column headers: [sort key, label, direction of the first click, th class]. Cost starts biggest-first.
 $columns = [
     ['asset', 'Asset #', 'asc', ''], ['desc', 'Description', 'asc', ''], ['type', 'Type', 'asc', ''], ['serial', 'Serial', 'asc', ''],
-    ['dept', 'Dept', 'asc', ''], ['location', 'Location', 'asc', ''], ['cost', 'Cost', 'desc', 'num'], ['verified', 'Verified', 'asc', ''],
+    ['dept', 'Dept', 'asc', ''], ['location', 'Location', 'asc', ''], ['cost', 'Cost', 'desc', 'num'], ['verified', 'Status', 'asc', ''],
 ];
 $sortLink = static function (string $key, string $label, string $first) use ($sort, $dir, $search, $status, $sortQuery, $filterQuery): string {
     $active = $key === $sort;
@@ -230,10 +231,13 @@ $fv = static fn(string $k): string => (string) $filters->value($k);
                             <td class="nowrap"><?= e($r['building'] . $r['room']) ?></td>
                             <td class="num"><?= e(fmt_money($r['cost'])) ?></td>
                             <td class="nowrap">
+                                <?php $audit = AssetsModule::audit($r); /* the more recent of verified / not found */ ?>
                                 <?php if ($isRetired): ?>
                                     <span class="muted">—</span>
-                                <?php elseif ($r['verified_date']): ?>
-                                    <?= e(fmt_date($r['verified_date'])) ?>
+                                <?php elseif ($audit['state'] === 'not_found'): ?>
+                                    <span class="badge badge-danger" title="Marked not found in an audit">Not found <?= e(fmt_date($audit['date'])) ?></span>
+                                <?php elseif ($audit['state'] === 'verified'): ?>
+                                    <?= e(fmt_date($audit['date'])) ?>
                                 <?php else: ?>
                                     <span class="badge badge-warn">Never</span>
                                 <?php endif; ?>

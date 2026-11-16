@@ -38,6 +38,15 @@ On the **New asset** page, tick **Keep data for batch input** before creating an
 returns with the form filled in from it (every field, including the asset and serial numbers), so twenty laptops only need
 those two changed each time. The checkbox is at the top of the form. Untick it on the last one. Nothing is stored for this: the form is filled from the asset just created, and only if you can add to its department.
 
+### Verifying assets and marking them not found
+
+During an audit, **Mark verified** on an asset's page records that it was checked and is where it should be, and the red **Not found**
+button records that it was looked for and is missing (migration `020`). Both record who and when, and anyone who can see the asset
+may use them, Read-only access included; neither changes anything else about the asset. The **Status** column of the Assets list (and
+the badge on the asset's page) shows whichever of the two dates is more recent: the verified date, or a red "Not found" with its
+date, or "Never" if neither has happened. An asset found again is simply verified again. Both dates are kept on the asset's page
+and in the CSV export ("Last verified", "Last not found"). Sorting by Status uses the same more recent date.
+
 ### Searching, filtering and exporting assets
 
 The search box on the **Assets** list searches as you type (asset number, serial, description and location; location is the
@@ -129,7 +138,7 @@ An administrator sets a person's **Role** on their user page (migration `018` ad
 
 | | User | Asset Manager | Administrator |
 |---|---|---|---|
-| Assets | only departments in their access list (Read: see and mark verified; Read & write: also add, edit, transfer, retire) | **every department**, Read & write, including retiring and attachments | everything |
+| Assets | only departments in their access list (Read: see, and mark verified or not found; Read & write: also add, edit, transfer, retire) | **every department**, Read & write, including retiring and attachments | everything |
 | Restore a retired asset, change an asset number | no | no | yes |
 | User accounts | no | create, edit, reset passwords, disable and re-enable **ordinary accounts only** | all accounts, and merging |
 | Department access they can give | n/a | **Read only** (None or Read) | None, Read, Read & write |
@@ -277,4 +286,4 @@ departments a user has access to (admins see everything). New icons go in `src/C
 - **XSS**: all output goes through `e()` (`htmlspecialchars`, `ENT_QUOTES`, UTF-8); CSP forbids inline styles and un-nonced scripts (except inline styles on the sign-in page when Google sign-in is on, see above).
 - **Passwords**: `password_hash()` / `password_verify()`; unknown usernames take the same code path as bad passwords.
 - **Sessions**: HttpOnly + SameSite=Lax cookie, strict mode, ID regenerated on login, idle timeout (default 30 min).
-- **Department access**: Read lets a user see a department's assets and mark them verified ("Mark verified" records who and when, and changes nothing else); Read & write also allows adding, editing, transferring and retiring. Retired assets cannot be verified.
+- **Department access**: Read lets a user see a department's assets and mark them verified or **not found** ("Mark verified" and the red "Not found" button record who and when, and change nothing else); Read & write also allows adding, editing, transferring and retiring. Retired assets cannot be verified or marked not found.

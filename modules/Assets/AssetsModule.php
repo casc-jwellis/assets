@@ -27,6 +27,8 @@ final class AssetsModule extends Module
     /** Editing relies on these schema changes (see migrations/). */
     private const REQUIRED_MIGRATIONS = ['003_widen_transfers_user_id.sql', '005_asset_edit_columns.sql'];
     private const RETIREMENT_MIGRATION = '006_asset_retirement.sql';
+    /** Adds assets.not_found_date (the red "Not found" audit button). */
+    private const NOT_FOUND_MIGRATION = '020_asset_not_found.sql';
 
     /** Abbreviation of the legacy department that retired assets used to be moved into. */
     private const RETIRE_DEPT = 'RETIRE';
@@ -48,6 +50,7 @@ final class AssetsModule extends Module
         $router->get('/assets/{id:\d+}/edit', [$this, 'showEdit']);
         $router->post('/assets/{id:\d+}/edit', [$this, 'update']);
         $router->post('/assets/{id:\d+}/verify', [$this, 'verify']);
+        $router->post('/assets/{id:\d+}/not-found', [$this, 'notFound']);
         $router->get('/assets/{id:\d+}/restore', [$this, 'showRestore'], ['admin' => true]);
         $router->post('/assets/{id:\d+}/restore', [$this, 'restore'], ['admin' => true]);
     }
@@ -71,7 +74,7 @@ final class AssetsModule extends Module
         'dept'     => ['d.abbr'],
         'location' => ['b.abbr', 'a.room'],
         'cost'     => ['a.cost'],
-        'verified' => ['a.verified_date'], // never verified (empty) comes first when ascending
+        'verified' => ['a.verified_date'], // the "Status" column; never verified (empty) comes first when ascending. See orderBy() for the not-found date.
     ];
     private const DEFAULT_SORT = 'asset';
 
@@ -216,6 +219,7 @@ final class AssetsModule extends Module
             'retiredBy'    => $this->userName($asset['retired_by'] ?? null),
             'canEdit'      => $editing && $canWrite && !$retired,
             'canVerify'    => $editing && !$retired, // anyone who can see it (the page only opens for those)
+            'canNotFound'  => $editing && $this->notFoundReady() && !$retired, // likewise: read-only access is enough
             'canRetire'    => $editing && $this->retirementReady() && $canWrite && !$retired,
             'canRestore'   => $this->retirementReady() && $retired && $this->app->auth->isAdmin(),
         ]);
@@ -254,6 +258,7 @@ final class AssetsModule extends Module
         $rows = $db->all(
             "SELECT a.asset_id, a.asset_number, a.serial_number, a.description, a.cost, a.room, a.verified_date,
                     t.name AS type_name, d.abbr AS dept, b.abbr AS building" . ($retirement ? ', a.retired' : '')
+                . ($this->notFoundReady() ? ', a.not_found_date' : '')
                 . ($attachments ? ', (SELECT COUNT(*) FROM asset_attachments x WHERE x.asset_id = a.asset_id) AS attachment_count' : '') . "
                FROM assets a
                LEFT JOIN asset_types t ON t.type_id = a.type_id
@@ -312,7 +317,11 @@ final class AssetsModule extends Module
         $select = 'a.asset_number, a.serial_number, a.description, a.room, a.cost, a.po_number, a.purchase_date, a.verified_date, a.notes,
                    a.created_date, t.name AS type_name, d.abbr AS dept, b.abbr AS building, p.abbr AS purchaser,
                    u.firstname AS add_first, u.lastname AS add_last, u.username AS add_user';
-        $joins = 'LEFT JOIN asset_types t ON t.type_id = a.type_id
+        if ($this->notFoundReady()) {
+            $columns['Last not found'] = ['not_found_date', 'date'];
+            $select .= ', a.not_found_date';
+        }
+        $joins ='LEFT JOIN asset_types t ON t.type_id = a.type_id
                   LEFT JOIN departments d ON d.department_id = a.department_id
                   LEFT JOIN buildings b ON b.building_id = a.building_id
                   LEFT JOIN departments p ON p.department_id = a.purchaser_id
@@ -382,8 +391,13 @@ final class AssetsModule extends Module
     private function orderBy(string $sort, string $dir): string
     {
         $direction = strtoupper($dir);
+        $columns = self::SORTS[$sort];
+        if ($sort === 'verified' && $this->notFoundReady()) {
+            // The Status column shows whichever audit date is more recent, so that is what it sorts by.
+            $columns = ["GREATEST(COALESCE(a.verified_date, '1000-01-01'), COALESCE(a.not_found_date, '1000-01-01'))"];
+        }
         return implode(', ', [
-            ...array_map(static fn(string $c): string => "{$c} {$direction}", self::SORTS[$sort]),
+            ...array_map(static fn(string $c): string => "{$c} {$direction}", $columns),
             'a.asset_number ASC', 'a.asset_id ASC',
         ]);
     }
@@ -554,6 +568,45 @@ final class AssetsModule extends Module
         );
         $this->app->session->flash('success', 'Asset ' . $a['asset_number'] . ' marked as verified.');
         $this->redirect('/assets/' . (int) $a['asset_id'] . $this->listQs);
+    }
+
+    /**
+     * One click "I looked for this asset in an audit and it was not there". Same rules as verify(): anyone who can see the
+     * asset may do it, and it touches only not_found_date (so it cannot clobber an edit in progress).
+     */
+    public function notFound(Request $req, array $params): never
+    {
+        $this->rememberList($req);
+        $this->requireEditing();
+        if (!$this->notFoundReady()) {
+            $this->app->error(503, 'Not available yet', 'The database needs updating first: an administrator must apply migration '
+                . self::NOT_FOUND_MIGRATION . ' on the Migrations page.');
+        }
+        $a = $this->findEditable((int) $params['id'], false);
+        $now = date('Y-m-d H:i:s');
+        $this->app->db->execute(
+            'UPDATE assets SET not_found_date = ?, updated_date = ?, updated_by = ? WHERE asset_id = ?',
+            [$now, $now, $this->app->auth->user()['user_id'], $a['asset_id']]
+        );
+        $this->app->session->flash('warning', 'Asset ' . $a['asset_number'] . ' marked as not found.');
+        $this->redirect('/assets/' . (int) $a['asset_id'] . $this->listQs);
+    }
+
+    /**
+     * What an audit last said about an asset: the more recent of verified_date and not_found_date (a tie goes to "not
+     * found", the safer thing to show). Used by the list and the detail page so they always agree.
+     *
+     * @param array<string,mixed> $row an asset row; not_found_date may be missing (migration 020 not applied)
+     * @return array{state:'never'|'verified'|'not_found', date:?string}
+     */
+    public static function audit(array $row): array
+    {
+        $verified = empty($row['verified_date']) ? null : (string) $row['verified_date'];
+        $notFound = empty($row['not_found_date']) ? null : (string) $row['not_found_date'];
+        if ($notFound !== null && ($verified === null || $notFound >= $verified)) {
+            return ['state' => 'not_found', 'date' => $notFound];
+        }
+        return $verified !== null ? ['state' => 'verified', 'date' => $verified] : ['state' => 'never', 'date' => null];
     }
 
     private function save(Request $req, ?array $existing): string
@@ -1323,6 +1376,11 @@ final class AssetsModule extends Module
     private function retirementReady(): bool
     {
         return $this->app->migrationApplied(self::RETIREMENT_MIGRATION);
+    }
+
+    private function notFoundReady(): bool
+    {
+        return $this->app->migrationApplied(self::NOT_FOUND_MIGRATION);
     }
 
     private function requireEditing(): void
