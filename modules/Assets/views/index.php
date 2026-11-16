@@ -235,9 +235,9 @@ $fv = static fn(string $k): string => (string) $filters->value($k);
                                 <?php if ($isRetired): ?>
                                     <span class="muted">—</span>
                                 <?php elseif ($audit['state'] === 'not_found'): ?>
-                                    <span class="badge badge-danger" title="Marked not found in an audit">Not found <?= e(fmt_date($audit['date'])) ?></span>
+                                    <span class="badge badge-danger" title="Marked not found in an audit"><span class="sr-only">Not found: </span><?= e(fmt_date($audit['date'])) ?></span>
                                 <?php elseif ($audit['state'] === 'verified'): ?>
-                                    <?= e(fmt_date($audit['date'])) ?>
+                                    <span class="badge badge-ok" title="Verified in an audit"><span class="sr-only">Verified: </span><?= e(fmt_date($audit['date'])) ?></span>
                                 <?php else: ?>
                                     <span class="badge badge-warn">Never</span>
                                 <?php endif; ?>

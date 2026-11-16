@@ -43,9 +43,10 @@ those two changed each time. The checkbox is at the top of the form. Untick it o
 During an audit, **Mark verified** on an asset's page records that it was checked and is where it should be, and the red **Not found**
 button records that it was looked for and is missing (migration `020`). Both record who and when, and anyone who can see the asset
 may use them, Read-only access included; neither changes anything else about the asset. The **Status** column of the Assets list (and
-the badge on the asset's page) shows whichever of the two dates is more recent: the verified date, or a red "Not found" with its
-date, or "Never" if neither has happened. An asset found again is simply verified again. Both dates are kept on the asset's page
-and in the CSV export ("Last verified", "Last not found"). Sorting by Status uses the same more recent date.
+the badge on the asset's page) shows whichever of the two dates is more recent: the verified date in green, or the not-found date in red (hover for the
+label; screen readers are told which), or "Never" if neither has happened. An asset found again is simply verified again. Both dates are kept on the asset's page
+and in the CSV export ("Last verified", "Last not found", and "Audit status", which says what the list's Status column
+shows: `Verified 2026-01-10`, `Not found 2026-06-01` or `Never`). Sorting by Status uses the same more recent date.
 
 ### Searching, filtering and exporting assets
 

@@ -321,6 +321,9 @@ final class AssetsModule extends Module
             $columns['Last not found'] = ['not_found_date', 'date'];
             $select .= ', a.not_found_date';
         }
+        // What the Status column of the list shows: the more recent audit result, with its date ("Verified 2026-01-10",
+        // "Not found 2026-06-01" or "Never"). The two date columns above keep both dates.
+        $columns['Audit status'] = ['audit_status', 'plain'];
         $joins ='LEFT JOIN asset_types t ON t.type_id = a.type_id
                   LEFT JOIN departments d ON d.department_id = a.department_id
                   LEFT JOIN buildings b ON b.building_id = a.building_id
@@ -362,6 +365,12 @@ final class AssetsModule extends Module
             $rows = $db->all("SELECT {$select} FROM assets a {$joins} WHERE {$where} ORDER BY {$order} LIMIT {$chunk} OFFSET {$offset}", $params);
             foreach ($rows as $r) {
                 $r['status'] = !empty($r['retired']) ? 'Retired' : 'Active';
+                $audit = self::audit($r);
+                $r['audit_status'] = match ($audit['state']) {
+                    'not_found' => 'Not found ' . substr((string) $audit['date'], 0, 10),
+                    'verified'  => 'Verified ' . substr((string) $audit['date'], 0, 10),
+                    default     => 'Never',
+                };
                 $r['added_by'] = $name($r['add_first'], $r['add_last'], $r['add_user']);
                 $r['changed_by'] = $name($r['chg_first'] ?? null, $r['chg_last'] ?? null, $r['chg_user'] ?? null);
                 $line = [];
